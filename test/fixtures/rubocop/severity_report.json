@@ -1,0 +1,57 @@
+{
+  "files": [
+    {
+      "path": "app/models/user.rb",
+      "offenses": [
+        {
+          "severity": "info",
+          "message": "info level",
+          "cop_name": "Example/Info",
+          "location": {
+            "start_line": 1
+          }
+        },
+        {
+          "severity": "refactor",
+          "message": "refactor level",
+          "cop_name": "Example/Refactor",
+          "location": {
+            "start_line": 2
+          }
+        },
+        {
+          "severity": "convention",
+          "message": "convention level",
+          "cop_name": "Example/Convention",
+          "location": {
+            "start_line": 3
+          }
+        },
+        {
+          "severity": "warning",
+          "message": "warning level",
+          "cop_name": "Example/Warning",
+          "location": {
+            "start_line": 4
+          }
+        },
+        {
+          "severity": "error",
+          "message": "error level",
+          "cop_name": "Example/Error",
+          "location": {
+            "start_line": 5
+          }
+        },
+        {
+          "severity": "fatal",
+          "message": "fatal level",
+          "cop_name": "Example/Fatal",
+          "location": {
+            "start_line": 6
+          }
+        }
+      ]
+    }
+  ]
+}

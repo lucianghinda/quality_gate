@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+require 'bullet'
+
+Rails.application.config.after_initialize do
+  Bullet.enable = Rails.env.test? || Rails.env.development?
+  Bullet.raise = Rails.env.test?
+  Bullet.bullet_logger = Rails.env.development?
+  Bullet.rails_logger = Rails.env.development?
+end

@@ -1,0 +1,60 @@
+plugins:
+  - rubocop-rails
+  - rubocop-performance
+  - rubocop-minitest
+  - quality_gate/rubocop:
+      plugin_class_name: QualityGate::RuboCopPlugin
+
+AllCops:
+  NewCops: disable
+  TargetRubyVersion: "3.2"
+  Exclude:
+    - db/schema.rb
+    - bin/**/*
+    - node_modules/**/*
+    - vendor/**/*
+
+Metrics/CyclomaticComplexity:
+  # Catch branch-heavy methods before they become opaque.
+  Max: 6
+
+Metrics/AbcSize:
+  # Keep assignment, branch, and condition growth visible in review.
+  Max: 16
+
+# Sandi Metz rules one to three are plain RuboCop budgets. Rule four is
+# QualityGate/ControllerInstanceVariables, enabled at the bottom of this file.
+#
+# Test suites read as linear setup, action, assertion, so the length rules earn
+# nothing there. Exempt them from your own .rubocop.yml, not from here: a path in
+# an inherited gem config resolves against the gem directory, so "test/**/*"
+# written here would name this gem's tests and never yours.
+#
+#   Metrics/MethodLength:
+#     Exclude:
+#       - test/**/*
+#       - spec/**/*
+
+Metrics/MethodLength:
+  # Sandi Metz rule two: a method says one thing in five lines or fewer.
+  Max: 5
+
+Metrics/ClassLength:
+  # Sandi Metz rule one: a class stays under a hundred lines.
+  Max: 100
+
+Metrics/ParameterLists:
+  # Sandi Metz rule three: pass no more than four parameters.
+  Max: 4
+
+Style/Documentation:
+  # Library users should choose their own documentation style and coverage.
+  Enabled: false
+
+Metrics/BlockLength:
+  # Test cases and DSL blocks get noisy fast, so block length stays opt-in.
+  Enabled: false
+
+QualityGate/ControllerInstanceVariables:
+  # Sandi Metz rule four: a controller action instantiates one object.
+  Enabled: true

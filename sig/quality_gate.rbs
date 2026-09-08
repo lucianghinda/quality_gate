@@ -1,0 +1,226 @@
+module QualityGate
+  VERSION: String
+
+  interface _Output
+    def puts: (*untyped objects) -> nil
+  end
+
+  class Error < StandardError
+  end
+
+  class ParseError < Error
+    attr_reader tool: String
+
+    def initialize: (tool: String, reason: String) -> void
+  end
+
+  class ConfigError < Error
+    attr_reader path: String
+
+    def initialize: (path: String, cause_message: String) -> void
+  end
+
+  class Railtie
+  end
+
+  class InstallGenerator
+    FILES: Array[String]
+    MARKER_START: String
+    MARKER_END: String
+
+    def create_settings_file: () -> void
+    def create_rules_file: () -> void
+    def create_initializers: () -> void
+    def inject_coverage: () -> void
+    def create_agent_integration: () -> void
+    def print_summary: () -> void
+  end
+
+  class Installer
+    def initialize: (destination_root: String, ?options: Hash[Symbol, untyped], ?stdout: _Output) -> void
+    def call: () -> (0 | 1)
+  end
+
+  class RubyProfile
+    attr_reader destination_root: String
+    attr_reader test_helper: String
+    attr_reader test_command: Array[String]
+
+    def initialize: (destination_root: String, ?options: Hash[Symbol, untyped]) -> void
+    def coverage?: () -> bool
+    def template_for: (String name) -> String
+  end
+
+  class Config
+    DEFAULTS: Hash[Symbol, untyped]
+
+    def self.defaults: () -> Hash[Symbol, untyped]
+    def self.load: (dir: String) -> Config
+
+    attr_reader path: String?
+    attr_reader unknown_keys: Array[String]
+
+    def initialize: (Hash[Symbol, untyped] settings, ?path: String?, ?unknown_keys: Array[String]) -> void
+    def to_h: () -> Hash[Symbol, untyped]
+    def fetch: (Symbol key) -> untyped
+  end
+
+  class HookLog
+    DEFAULT_PATH: String
+
+    attr_reader path: String
+
+    def initialize: (path: String) -> void
+    def recent: (?limit: Integer) -> Array[Hash[String, untyped]]
+    def unavailable_count: (?limit: Integer) -> Integer
+    def warning_line: (?limit: Integer) -> String?
+  end
+
+  class Adapter
+    def initialize: (config: Config, ?files: Array[String], ?diagnostic_io: _Output) -> void
+    def call: () -> Array[Finding]
+    def name: () -> String
+    def command: () -> Array[String]
+    def parse: (String stdout) -> Array[Finding]
+    def timeout: () -> Integer
+  end
+
+  module Adapters
+    class Brakeman < Adapter
+      CONFIDENCE_MAP: Hash[String, finding_severity]
+
+      def initialize: (config: Config, ?files: Array[String], ?diagnostic_io: _Output) -> void
+      def call: () -> Array[Finding]
+      def name: () -> String
+      def command: () -> Array[String]
+      def parse: (String stdout) -> Array[Finding]
+      def timeout: () -> Integer
+    end
+
+    class BundlerAudit < Adapter
+      LOCK_FILE: String
+
+      def initialize: (config: Config, ?files: Array[String], ?diagnostic_io: _Output) -> void
+      def call: () -> Array[Finding]
+      def name: () -> String
+      def command: () -> Array[String]
+      def parse: (String stdout) -> Array[Finding]
+      def timeout: () -> Integer
+    end
+
+    class RuboCop < Adapter
+      SEVERITY_MAP: Hash[String, finding_severity]
+      CONFIG_PATH: String
+
+      def initialize: (config: Config, ?files: Array[String], ?diagnostic_io: _Output) -> void
+      def call: () -> Array[Finding]
+      def name: () -> String
+      def command: () -> Array[String]
+      def parse: (String stdout) -> Array[Finding]
+      def timeout: () -> Integer
+    end
+
+    class SimpleCov < Adapter
+      COVERAGE_PATH: String
+
+      def initialize: (config: Config, ?files: Array[String], ?diagnostic_io: _Output) -> void
+      def call: () -> Array[Finding]
+      def name: () -> String
+      def timeout: () -> Integer
+    end
+
+    class TestSuite < Adapter
+      TAIL_LINES: Integer
+
+      def initialize: (config: Config, ?files: Array[String], ?diagnostic_io: _Output) -> void
+      def call: () -> Array[Finding]
+      def name: () -> String
+      def command: () -> Array[String]
+      def env: () -> Hash[String, String]
+      def timeout: () -> Integer
+    end
+
+    class Undercover < Adapter
+      COVERAGE_PATH: String
+      SKIP_RULE: String
+
+      def initialize: (config: Config, ?files: Array[String], ?diagnostic_io: _Output) -> void
+      def call: () -> Array[Finding]
+      def name: () -> String
+      def command: () -> Array[String]
+      def compare_point: () -> String?
+      def parse: (String stdout) -> Array[Finding]
+      def timeout: () -> Integer
+    end
+  end
+
+  class Runner
+    def initialize: (adapters: Array[Adapter], config: Config, ?diagnostic_io: _Output?) -> void
+    def call: () -> Runner::Result
+
+    class Result < Data
+      attr_reader findings: Array[Finding]
+      attr_reader failed_tools: Array[String]
+      attr_reader checks: Array[Hash[Symbol, untyped]]
+
+      def initialize: (findings: Array[Finding], ?checks: Array[Hash[Symbol, untyped]]) -> void
+      def with: (?findings: Array[Finding], ?checks: Array[Hash[Symbol, untyped]]) -> Result
+      def exit_code: () -> (0 | 1 | 2)
+    end
+  end
+
+  class CLI
+    SUBCOMMANDS: Array[String]
+
+    def self.run: (Array[String] argv, ?stdout: _Output, ?stderr: _Output, ?dir: String) -> (0 | 1 | 2)
+  end
+
+  class InitCommand
+    def self.run: (Array[String] arguments, stdout: _Output, stderr: _Output, dir: String) -> (0 | 1 | 2)
+  end
+
+  module Reporters
+    class Text
+      def initialize: (io: _Output) -> void
+      def call: (Runner::Result result) -> nil
+    end
+
+    class Json
+      def initialize: (io: _Output) -> void
+      def call: (Runner::Result result) -> nil
+    end
+  end
+
+  type finding_severity = :error | :warning | :info
+
+  class Finding < Data
+    SEVERITIES: Array[finding_severity]
+    TOOL_FAILURE_RULE: String
+
+    attr_reader tool: String
+    attr_reader file: String
+    attr_reader line: Integer
+    attr_reader rule: String
+    attr_reader severity: finding_severity
+    attr_reader message: String
+
+    def initialize: (
+      tool: String,
+      file: String,
+      line: Integer,
+      rule: String,
+      severity: finding_severity,
+      message: String
+    ) -> void
+    def self.tool_failure: (tool: String, message: String) -> Finding
+    def tool_failure?: () -> bool
+  end
+
+  module ExitCode
+    CLEAN: 0
+    FINDINGS: 1
+    TOOL_FAILURE: 2
+
+    def self.all: () -> Array[0 | 1 | 2]
+  end
+end

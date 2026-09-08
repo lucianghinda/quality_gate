@@ -1,0 +1,26 @@
+inherit_from: rubocop.yml
+
+# Opt into this preset only after reviewing the conventions for your application.
+QualityGate/AssociationDefaultBlockValue:
+  Enabled: true
+
+QualityGate/PreferAfterSaveCommit:
+  Enabled: true
+
+QualityGate/PrivateOnlyConcern:
+  Enabled: true
+
+QualityGate/BroadcastInController:
+  Enabled: true
+
+Rails/StrongParametersExpect:
+  Enabled: true
+
+Rails/AttributeDefaultBlockValue:
+  Enabled: true
+
+Rails/Pluck:
+  Enabled: true
+
+Rails/SelectMap:
+  Enabled: true

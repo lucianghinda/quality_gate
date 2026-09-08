@@ -1,0 +1,42 @@
+# # Output format: "text" or "json".
+# format: text
+#
+# # Optional file paths passed to adapters; empty means no configured restriction.
+# files: []
+#
+# # Adapters run by each gate, in order.
+# adapters:
+#   fast:
+#     - rubocop
+#   verify:
+#     - reek
+#     - test_suite
+#     - undercover
+#   audit:
+#     - brakeman
+#     - bundler_audit
+#
+# # Command overrides by gate. Empty mappings use adapter defaults.
+# commands:
+#   fast: {}
+#   verify:
+#     test_suite:
+#       - bin/rails
+#       - test
+#   audit: {}
+#
+# # Command timeouts in seconds. Adapter-specific values override the default.
+# timeouts:
+#   default: 120
+#   rubocop: 10
+#   test_suite: 120
+#   undercover: 120
+#
+# # Aggregate SimpleCov budgets. Leave the entire mapping commented to disable coverage budgeting.
+# coverage:
+#
+# # Git ref or commit for Undercover; blank selects the comparison point automatically.
+# compare_point:
+#
+# # Explicit RuboCop config path; blank uses host config when present, otherwise the shipped config.
+# rubocop_config:

@@ -1,0 +1,6 @@
+# Default Reek configuration shipped with quality_gate.
+# Used only when the host project has no .reek.yml of its own.
+detectors:
+  # Demanding a comment on every class pushes agents toward noise comments.
+  IrresponsibleModule:
+    enabled: false

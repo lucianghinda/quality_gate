@@ -1,0 +1,466 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# The standalone boundary code stays explicit so every fail-open branch is visible.
+# rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
+# rubocop:disable Metrics/PerceivedComplexity, Style/SignalException
+
+require "json"
+require "open3"
+require "time"
+
+begin
+  require "fiddle/import"
+rescue LoadError
+  nil
+end
+
+<%= hook_log_filesystem_source -%>
+
+HOOK_LOG_MAX_SCAN_BYTES = 1024 * 1024
+HOOK_LOG_MAX_LINE_BYTES = 64 * 1024
+HOOK_LOG_OUTCOMES = %w[
+  no_file skipped deleted clean findings unavailable
+  verify_skipped verify_debounced verify_clean verify_blocked verify_unavailable verify_cap
+].freeze
+VERIFY_OUTCOMES = %w[
+  verify_skipped verify_debounced verify_clean verify_blocked verify_unavailable verify_cap
+].freeze
+DEBOUNCE_DECISIVE_OUTCOMES = %w[
+  verify_clean verify_blocked verify_unavailable verify_cap
+].freeze
+FAST_OUTCOMES = %w[no_file skipped deleted clean findings unavailable].freeze
+BLOCK_LIMIT = 3
+STATUS_CODES = " MADRCUT?!".bytes.freeze
+C_ESCAPES = {
+  "a".ord => "\a".b,
+  "b".ord => "\b".b,
+  "t".ord => "\t".b,
+  "n".ord => "\n".b,
+  "v".ord => "\v".b,
+  "f".ord => "\f".b,
+  "r".ord => "\r".b,
+  '"'.ord => '"'.b,
+  "\\".ord => "\\".b
+}.freeze
+
+def quality_gate_outcome(stdout, status)
+  report = JSON.parse(stdout)
+  return unless valid_report?(report)
+
+  outcome_for(status.exitstatus, report.fetch("findings"))
+rescue JSON::ParserError, EncodingError
+  nil
+end
+
+def valid_report?(report)
+  return false unless report.is_a?(Hash)
+
+  findings = report["findings"]
+  summary = report["summary"]
+  findings.is_a?(Array) &&
+    findings.all? { valid_finding?(_1) } &&
+    summary.is_a?(Hash) &&
+    valid_summary?(summary, findings.length)
+end
+
+def valid_finding?(finding)
+  return false unless finding.is_a?(Hash)
+
+  string_fields = %w[tool file rule severity message]
+  string_fields.all? { finding[_1].is_a?(String) } &&
+    finding["line"].is_a?(Integer) &&
+    finding["line"] >= 0 &&
+    %w[error warning info].include?(finding["severity"]) &&
+    finding["rule"] != "tool_failure"
+end
+
+def valid_summary?(summary, finding_count)
+  summary_findings = summary["findings"]
+  tool_failures = summary["tool_failures"]
+  failed_tools = summary["failed_tools"]
+
+  summary_findings.is_a?(Integer) &&
+    summary_findings == finding_count &&
+    tool_failures.is_a?(Integer) &&
+    tool_failures.zero? &&
+    failed_tools == []
+end
+
+def outcome_for(exit_status, findings)
+  return "clean" if exit_status&.zero? && findings.empty?
+
+  "findings" if exit_status == 1 && findings.any?
+end
+
+def ruby_changes?(project_root)
+  stdout, _stderr, status = Open3.capture3(
+    "git", "status", "--porcelain", "--untracked-files=all",
+    chdir: project_root
+  )
+  return true unless status.success?
+
+  ruby_path_in_status?(stdout)
+rescue StandardError
+  true
+end
+
+def ruby_path_in_status?(status_output)
+  lines = status_output.b.split("\n".b, -1)
+  lines.pop if lines.last == "".b
+
+  lines.each do |line|
+    paths = status_paths(line)
+    return true unless paths
+    return true if paths.any? { _1.end_with?(".rb".b) }
+  end
+  false
+end
+
+def status_paths(line)
+  return unless line.bytesize >= 4
+
+  index_status = line.getbyte(0)
+  worktree_status = line.getbyte(1)
+  return unless valid_status_pair?(index_status, worktree_status) && line.getbyte(2) == " ".ord
+
+  field = line.byteslice(3, line.bytesize - 3)
+  return unless field && !field.empty?
+
+  paths = rename_status?(index_status, worktree_status) ? renamed_paths(field) : ordinary_path(field)
+  return unless paths
+
+  index_status == "!".ord && worktree_status == "!".ord ? [] : paths
+end
+
+def valid_status_pair?(index_status, worktree_status)
+  return false unless STATUS_CODES.include?(index_status) && STATUS_CODES.include?(worktree_status)
+  return index_status == "?".ord && worktree_status == "?".ord if [index_status, worktree_status].include?("?".ord)
+  return index_status == "!".ord && worktree_status == "!".ord if [index_status, worktree_status].include?("!".ord)
+
+  index_status != " ".ord || worktree_status != " ".ord
+end
+
+def rename_status?(index_status, worktree_status)
+  [index_status, worktree_status].any? { _1 == "R".ord || _1 == "C".ord }
+end
+
+def ordinary_path(field)
+  return if rename_separator_offsets(field).any?
+
+  path = decoded_status_path(field)
+  [path] if path
+end
+
+def renamed_paths(field)
+  offsets = rename_separator_offsets(field)
+  return unless offsets.one?
+
+  separator = offsets.first
+  old_path = decoded_status_path(field.byteslice(0, separator))
+  new_offset = separator + 4
+  new_path = decoded_status_path(field.byteslice(new_offset, field.bytesize - new_offset))
+  [old_path, new_path] if old_path && new_path
+end
+
+def rename_separator_offsets(field)
+  offsets = []
+  quoted = false
+  index = 0
+
+  while index < field.bytesize
+    byte = field.getbyte(index)
+    if quoted && byte == "\\".ord
+      return [] if index + 1 >= field.bytesize
+
+      index += 2
+      next
+    end
+    quoted = !quoted if byte == '"'.ord
+    if !quoted && field.byteslice(index, 4) == " -> ".b
+      offsets << index
+      index += 4
+      next
+    end
+    index += 1
+  end
+
+  quoted ? [] : offsets
+end
+
+def decoded_status_path(field)
+  return unless field && !field.empty?
+  return field unless field.start_with?('"'.b)
+
+  decode_quoted_status_path(field)
+end
+
+def decode_quoted_status_path(field)
+  return unless field.bytesize >= 2 && field.end_with?('"'.b)
+
+  decoded = String.new(encoding: Encoding::BINARY)
+  index = 1
+  finish = field.bytesize - 1
+  while index < finish
+    byte = field.getbyte(index)
+    return if byte == '"'.ord
+
+    if byte == "\\".ord
+      escaped, index = decode_status_escape(field, index + 1, finish)
+      return unless escaped
+
+      decoded << escaped
+    else
+      decoded << byte
+      index += 1
+    end
+  end
+  decoded
+end
+
+def decode_status_escape(field, index, finish)
+  return [nil, index] if index >= finish
+
+  byte = field.getbyte(index)
+  return [C_ESCAPES.fetch(byte), index + 1] if C_ESCAPES.key?(byte)
+  return [nil, index] unless byte.between?("0".ord, "7".ord)
+
+  digits = String.new(encoding: Encoding::BINARY)
+  3.times do
+    break if index >= finish || !field.getbyte(index).between?("0".ord, "7".ord)
+
+    digits << field.getbyte(index)
+    index += 1
+  end
+  [digits.to_i(8).chr(Encoding::BINARY), index]
+end
+
+def close_log_descriptor(io)
+  io&.close
+rescue StandardError
+  nil
+end
+
+def hook_log_history(project_root)
+  root_flags = File::RDONLY | File::NOFOLLOW | HookLogFilesystem::O_NONBLOCK |
+               HookLogFilesystem::O_DIRECTORY
+  root = File.open(project_root, root_flags)
+  root.close_on_exec = true if root.respond_to?(:close_on_exec=)
+  return [[], false] unless root.stat.directory?
+
+  begin
+    directory = HookLogFilesystem.open_existing_log_directory(root)
+  rescue Errno::ENOENT
+    return [[], true]
+  end
+  return [[], false] unless directory.stat.directory?
+
+  begin
+    log = HookLogFilesystem.open_log_file_for_read(directory)
+  rescue Errno::ENOENT
+    return [[], true]
+  end
+  log_stat = log.stat
+  return [[], false] unless log_stat.file? && log_stat.nlink == 1
+
+  log.binmode
+  [valid_hook_log_records(log), true]
+rescue LoadError, NotImplementedError, StandardError
+  [[], false]
+ensure
+  close_log_descriptor(log)
+  close_log_descriptor(directory)
+  close_log_descriptor(root)
+end
+
+def valid_hook_log_records(log)
+  hook_log_tail(log).split("\n".b).filter_map { parse_hook_log_record(_1) }
+end
+
+def hook_log_tail(log)
+  size = log.stat.size
+  length = [size, HOOK_LOG_MAX_SCAN_BYTES].min
+  offset = size - length
+  starts_at_boundary = hook_log_line_boundary?(log, offset)
+  log.seek(offset, IO::SEEK_SET)
+  bytes = log.read(length) || "".b
+  return bytes if starts_at_boundary
+
+  newline = bytes.index("\n".b)
+  newline ? bytes.byteslice(newline + 1, bytes.bytesize - newline - 1) : "".b
+end
+
+def hook_log_line_boundary?(log, offset)
+  return true if offset.zero?
+
+  log.seek(offset - 1, IO::SEEK_SET)
+  log.read(1) == "\n".b
+end
+
+def parse_hook_log_record(line)
+  return if line.bytesize > HOOK_LOG_MAX_LINE_BYTES
+
+  line = line.dup.force_encoding(Encoding::UTF_8)
+  return unless line.valid_encoding?
+
+  record = JSON.parse(line)
+  record if valid_hook_log_record?(record)
+rescue JSON::ParserError
+  nil
+end
+
+def valid_hook_log_record?(record)
+  record.is_a?(Hash) &&
+    record["ts"].is_a?(String) &&
+    record.key?("file") &&
+    (record["file"].nil? || record["file"].is_a?(String)) &&
+    HOOK_LOG_OUTCOMES.include?(record["outcome"]) &&
+    valid_hook_log_duration?(record["duration_ms"])
+end
+
+def valid_hook_log_duration?(duration)
+  duration.is_a?(Numeric) && duration.finite? && duration >= 0
+end
+
+def debounced?(records, session_id)
+  latest_verify = records.reverse_each.find do |record|
+    record["session_id"] == session_id && DEBOUNCE_DECISIVE_OUTCOMES.include?(record["outcome"])
+  end
+  return false unless latest_verify&.fetch("outcome") == "verify_clean"
+
+  clean_time = Time.iso8601(latest_verify.fetch("ts"))
+  records.none? { ruby_edit_at_or_after?(_1, clean_time) }
+rescue ArgumentError
+  false
+end
+
+def ruby_edit_at_or_after?(record, clean_time)
+  file = record["file"]
+  return false unless file&.end_with?(".rb") && FAST_OUTCOMES.include?(record["outcome"])
+
+  Time.iso8601(record.fetch("ts")) >= clean_time
+rescue ArgumentError
+  true
+end
+
+def consecutive_blocks(records, session_id)
+  count = 0
+  records.reverse_each do |record|
+    next unless record["session_id"] == session_id && VERIFY_OUTCOMES.include?(record["outcome"])
+
+    break unless record["outcome"] == "verify_blocked"
+
+    count += 1
+  end
+  count
+end
+
+def append_hook_log(project_root, entry)
+  root_flags = File::RDONLY | File::NOFOLLOW | HookLogFilesystem::O_NONBLOCK |
+               HookLogFilesystem::O_DIRECTORY
+  root = File.open(project_root, root_flags)
+  root.close_on_exec = true if root.respond_to?(:close_on_exec=)
+  return false unless root.stat.directory?
+
+  directory = HookLogFilesystem.open_log_directory(root)
+  return false unless directory.stat.directory?
+
+  log, created = HookLogFilesystem.open_log_file(directory)
+  log_stat = log.stat
+  return false unless log_stat.file? && log_stat.nlink == 1
+
+  if created
+    mask = File.umask
+    begin
+      log.chmod(0o644 & ~mask)
+    ensure
+      File.umask(mask)
+    end
+  end
+  line = "#{entry}\n"
+  written = log.syswrite(line)
+  fail IOError, "short hook log write" unless written == line.bytesize
+
+  true
+rescue LoadError, NotImplementedError, StandardError
+  false
+ensure
+  close_log_descriptor(log)
+  close_log_descriptor(directory)
+  close_log_descriptor(root)
+end
+
+started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+input = begin
+  parsed = JSON.parse($stdin.read)
+  parsed.is_a?(Hash) ? parsed : {}
+rescue JSON::ParserError, EncodingError
+  {}
+end
+
+project_root = input["cwd"]
+unless project_root.is_a?(String) && !project_root.empty?
+  project_root = ENV["CLAUDE_PROJECT_DIR"]
+  project_root = Dir.pwd unless project_root.is_a?(String) && !project_root.empty?
+end
+session_id = input["session_id"]
+session_id = "unknown" unless session_id.is_a?(String) && !session_id.empty?
+
+exit_code = 0
+feedback = nil
+if !ruby_changes?(project_root)
+  outcome = "verify_skipped"
+else
+  records, history_available = hook_log_history(project_root)
+  if debounced?(records, session_id)
+    outcome = "verify_debounced"
+  elsif consecutive_blocks(records, session_id) >= BLOCK_LIMIT
+    outcome = "verify_cap"
+  else
+    begin
+      stdout, _stderr, status = Open3.capture3(
+        "bundle", "exec", "quality_gate", "verify", "--format", "json",
+        chdir: project_root
+      )
+      verify_outcome = quality_gate_outcome(stdout, status)
+      if verify_outcome == "clean"
+        outcome = "verify_clean"
+      elsif verify_outcome == "findings"
+        outcome = "verify_blocked"
+        exit_code = 2
+        feedback = stdout
+      else
+        outcome = "verify_unavailable"
+      end
+    rescue StandardError
+      outcome = "verify_unavailable"
+    end
+  end
+end
+
+if outcome == "verify_blocked" && !history_available
+  outcome = "verify_unavailable"
+  feedback = nil
+  exit_code = 0
+end
+
+duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round
+entry = JSON.generate(
+  "ts" => Time.now.utc.iso8601(6),
+  "file" => nil,
+  "outcome" => outcome,
+  "duration_ms" => duration_ms,
+  "session_id" => session_id
+)
+
+persisted = append_hook_log(project_root, entry)
+if outcome == "verify_blocked" && !persisted
+  feedback = nil
+  exit_code = 0
+end
+
+$stderr.write(feedback) if feedback
+exit exit_code
+
+# rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength
+# rubocop:enable Metrics/PerceivedComplexity, Style/SignalException

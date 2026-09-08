@@ -1,0 +1,15 @@
+/.bundle/
+/.yardoc
+/_yardoc/
+/coverage/
+/doc/
+/pkg/
+/spec/reports/
+/tmp/
+/log/
+/.claude/
+/.omx/
+/AGENTS.md
+/CLAUDE.md
+/Gemfile.lock
+/docs/plans/

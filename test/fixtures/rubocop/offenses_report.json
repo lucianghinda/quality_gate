@@ -1,0 +1,38 @@
+{
+  "files": [
+    {
+      "path": "app/models/user.rb",
+      "offenses": [
+        {
+          "severity": "warning",
+          "message": "Prefer single-quoted strings when you don't need string interpolation.",
+          "cop_name": "Style/StringLiterals",
+          "location": {
+            "start_line": 2
+          }
+        },
+        {
+          "severity": "error",
+          "message": "Useless assignment to variable - value.",
+          "cop_name": "Lint/UselessAssignment",
+          "location": {
+            "start_line": 8
+          }
+        }
+      ]
+    },
+    {
+      "path": "app/services/report_builder.rb",
+      "offenses": [
+        {
+          "severity": "convention",
+          "message": "Method has too many lines. [14/12]",
+          "cop_name": "Metrics/MethodLength",
+          "location": {
+            "start_line": 14
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,17 @@
+commands:
+  verify:
+    test_suite:
+      - bundle
+      - exec
+      - rake
+      - test
+adapters:
+  verify:
+    - test_suite
+    - undercover
+    - simplecov
+coverage:
+  minimum_line: 96
+  minimum_branch: 83
+timeouts:
+  test_suite: 240

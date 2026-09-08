@@ -1,0 +1,248 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "open3"
+require "time"
+
+begin
+  require "fiddle/import"
+rescue LoadError
+  nil
+end
+
+<%= hook_log_filesystem_source -%>
+
+HOOK_LOG_MAX_SCAN_BYTES = 1024 * 1024
+HOOK_LOG_MAX_LINE_BYTES = 64 * 1024
+HOOK_LOG_OUTCOMES = %w[
+  no_file skipped deleted clean findings unavailable
+  verify_skipped verify_debounced verify_clean verify_blocked verify_unavailable verify_cap
+].freeze
+UNAVAILABLE_NOTICE = "quality_gate fast could not run; " \
+                     "run `bundle exec quality_gate fast` and check log/quality_gate_hooks.jsonl\n"
+
+def quality_gate_outcome(stdout, status)
+  report = JSON.parse(stdout)
+  return unless valid_report?(report)
+
+  outcome_for(status.exitstatus, report.fetch("findings"))
+rescue JSON::ParserError, EncodingError
+  nil
+end
+
+def valid_report?(report)
+  return false unless report.is_a?(Hash)
+
+  findings = report["findings"]
+  summary = report["summary"]
+  findings.is_a?(Array) &&
+    findings.all? { valid_finding?(_1) } &&
+    summary.is_a?(Hash) &&
+    valid_summary?(summary, findings.length)
+end
+
+def valid_finding?(finding)
+  return false unless finding.is_a?(Hash)
+
+  string_fields = %w[tool file rule severity message]
+  string_fields.all? { finding[_1].is_a?(String) } &&
+    finding["line"].is_a?(Integer) &&
+    finding["line"] >= 0 &&
+    %w[error warning info].include?(finding["severity"]) &&
+    finding["rule"] != "tool_failure"
+end
+
+def valid_summary?(summary, finding_count)
+  summary_findings = summary["findings"]
+  tool_failures = summary["tool_failures"]
+  failed_tools = summary["failed_tools"]
+
+  summary_findings.is_a?(Integer) &&
+    summary_findings == finding_count &&
+    tool_failures.is_a?(Integer) &&
+    tool_failures.zero? &&
+    failed_tools == []
+end
+
+def outcome_for(exit_status, findings)
+  return "clean" if exit_status&.zero? && findings.empty?
+
+  "findings" if exit_status == 1 && findings.any?
+end
+
+def initial_outcome(file)
+  return "no_file" unless file
+  return "skipped" unless file.end_with?(".rb")
+  return "deleted" unless File.file?(file)
+
+  "unavailable"
+end
+
+def close_log_descriptor(io)
+  io&.close
+rescue StandardError
+  nil
+end
+
+def last_hook_log_outcome(project_root)
+  root_flags = File::RDONLY | File::NOFOLLOW | HookLogFilesystem::O_NONBLOCK |
+               HookLogFilesystem::O_DIRECTORY
+  root = File.open(project_root, root_flags)
+  root.close_on_exec = true if root.respond_to?(:close_on_exec=)
+  return unless root.stat.directory?
+
+  directory = HookLogFilesystem.open_existing_log_directory(root)
+  return unless directory.stat.directory?
+
+  log = HookLogFilesystem.open_log_file_for_read(directory)
+  log_stat = log.stat
+  return unless log_stat.file? && log_stat.nlink == 1
+
+  log.binmode
+  last_valid_hook_log_outcome(log)
+rescue LoadError, NotImplementedError, StandardError
+  nil
+ensure
+  close_log_descriptor(log)
+  close_log_descriptor(directory)
+  close_log_descriptor(root)
+end
+
+def last_valid_hook_log_outcome(log)
+  hook_log_tail(log).split("\n".b).reverse_each do |line|
+    outcome = parse_hook_log_outcome(line)
+    return outcome if outcome
+  end
+  nil
+end
+
+def hook_log_tail(log)
+  size = log.stat.size
+  length = [size, HOOK_LOG_MAX_SCAN_BYTES].min
+  offset = size - length
+  starts_at_boundary = hook_log_line_boundary?(log, offset)
+  log.seek(offset, IO::SEEK_SET)
+  bytes = log.read(length) || "".b
+  return bytes if starts_at_boundary
+
+  newline = bytes.index("\n".b)
+  newline ? bytes.byteslice(newline + 1, bytes.bytesize - newline - 1) : "".b
+end
+
+def hook_log_line_boundary?(log, offset)
+  return true if offset.zero?
+
+  log.seek(offset - 1, IO::SEEK_SET)
+  log.read(1) == "\n".b
+end
+
+def parse_hook_log_outcome(line)
+  return if line.bytesize > HOOK_LOG_MAX_LINE_BYTES
+
+  line = line.dup.force_encoding(Encoding::UTF_8)
+  return unless line.valid_encoding?
+
+  record = JSON.parse(line)
+  record["outcome"] if valid_hook_log_record?(record)
+rescue JSON::ParserError
+  nil
+end
+
+def valid_hook_log_record?(record)
+  record.is_a?(Hash) &&
+    record["ts"].is_a?(String) &&
+    record.key?("file") &&
+    (record["file"].nil? || record["file"].is_a?(String)) &&
+    HOOK_LOG_OUTCOMES.include?(record["outcome"]) &&
+    valid_hook_log_duration?(record["duration_ms"])
+end
+
+def valid_hook_log_duration?(duration)
+  duration.is_a?(Numeric) && duration.finite? && duration >= 0
+end
+
+def append_hook_log(project_root, entry)
+  root_flags = File::RDONLY | File::NOFOLLOW | HookLogFilesystem::O_NONBLOCK |
+               HookLogFilesystem::O_DIRECTORY
+  root = File.open(project_root, root_flags)
+  root.close_on_exec = true if root.respond_to?(:close_on_exec=)
+  return unless root.stat.directory?
+
+  directory = HookLogFilesystem.open_log_directory(root)
+  return unless directory.stat.directory?
+
+  log, created = HookLogFilesystem.open_log_file(directory)
+  log_stat = log.stat
+  return unless log_stat.file? && log_stat.nlink == 1
+
+  if created
+    mask = File.umask
+    begin
+      log.chmod(0o644 & ~mask)
+    ensure
+      File.umask(mask)
+    end
+  end
+  line = "#{entry}\n"
+  written = log.syswrite(line)
+  fail IOError, "short hook log write" unless written == line.bytesize
+rescue LoadError, NotImplementedError, StandardError
+  nil
+ensure
+  close_log_descriptor(log)
+  close_log_descriptor(directory)
+  close_log_descriptor(root)
+end
+
+started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+input = begin
+  parsed = JSON.parse($stdin.read)
+  parsed.is_a?(Hash) ? parsed : {}
+rescue JSON::ParserError
+  {}
+end
+
+project_root = input["cwd"]
+project_root = Dir.pwd unless project_root.is_a?(String) && !project_root.empty?
+tool_input = input["tool_input"]
+file = tool_input["file_path"] if tool_input.is_a?(Hash)
+file = nil unless file.is_a?(String) && !file.empty?
+outcome = initial_outcome(file)
+attempt_was_made = outcome == "unavailable"
+exit_code = 0
+feedback = nil
+
+if outcome == "unavailable"
+  begin
+    stdout, _stderr, status = Open3.capture3(
+      "bundle", "exec", "quality_gate", "fast", "--files", file, "--format", "json",
+      chdir: project_root
+    )
+    outcome = quality_gate_outcome(stdout, status) || "unavailable"
+    if outcome == "findings"
+      exit_code = 2
+      feedback = stdout
+    end
+  rescue StandardError
+    outcome = "unavailable"
+  end
+end
+
+if attempt_was_made && outcome == "unavailable" && last_hook_log_outcome(project_root) != "unavailable"
+  exit_code = 2
+  feedback = UNAVAILABLE_NOTICE
+end
+
+duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round
+entry = JSON.generate(
+  "ts" => Time.now.utc.iso8601(6),
+  "file" => file,
+  "outcome" => outcome,
+  "duration_ms" => duration_ms
+)
+
+append_hook_log(project_root, entry)
+
+$stderr.write(feedback) if feedback
+exit exit_code

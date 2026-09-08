@@ -1,0 +1,76 @@
+# Opens fixed hook-log paths relative to already-open directory descriptors.
+module HookLogFilesystem
+  extend self
+
+  O_DIRECTORY = File.const_defined?(:DIRECTORY) ? File::DIRECTORY : 0
+  O_NONBLOCK = File.const_defined?(:NONBLOCK) ? File::NONBLOCK : 0
+
+  def open_file(directory, name, flags, mode = 0)
+    fd = syscall(:openat, "int openat(int, const char*, int, int)", directory.fileno, name, flags, mode)
+    File.for_fd(fd).tap do |io|
+      io.close_on_exec = true if io.respond_to?(:close_on_exec=)
+    end
+  end
+
+  def open_directory(directory, name)
+    open_file(directory, name, File::RDONLY | File::NOFOLLOW | O_NONBLOCK | O_DIRECTORY)
+  end
+
+  def open_log_directory(directory)
+    open_directory(directory, "log")
+  rescue Errno::ENOENT
+    create_log_directory(directory)
+    open_directory(directory, "log")
+  end
+
+  def open_existing_log_directory(directory)
+    open_directory(directory, "log")
+  end
+
+  def open_log_file_for_read(directory)
+    flags = File::RDONLY | File::NOFOLLOW | O_NONBLOCK
+    open_file(directory, "quality_gate_hooks.jsonl", flags)
+  end
+
+  def open_log_file(directory)
+    open_existing_log_file(directory)
+  rescue Errno::ENOENT
+    begin
+      flags = log_file_flags | File::CREAT | File::EXCL
+      [open_file(directory, "quality_gate_hooks.jsonl", flags, 0o644), true]
+    rescue Errno::EEXIST
+      open_existing_log_file(directory)
+    end
+  end
+
+  def create_log_directory(directory)
+    syscall(:mkdirat, "int mkdirat(int, const char*, unsigned short)", directory.fileno, "log", 0o755)
+  rescue Errno::EEXIST
+    nil
+  end
+
+  private
+
+  def open_existing_log_file(directory)
+    [open_file(directory, "quality_gate_hooks.jsonl", log_file_flags), false]
+  end
+
+  def log_file_flags
+    File::WRONLY | File::APPEND | File::NOFOLLOW | O_NONBLOCK
+  end
+
+  def syscall(function_name, signature, *arguments)
+    importer.extern(signature) unless importer.respond_to?(function_name)
+    result = importer.public_send(function_name, *arguments)
+    return result unless result == -1
+
+    fail SystemCallError.new(function_name.to_s, Fiddle.last_error)
+  end
+
+  def importer
+    @importer ||= Module.new.tap do |mod|
+      mod.extend(Fiddle::Importer)
+      mod.dlload(Fiddle.dlopen(nil))
+    end
+  end
+end

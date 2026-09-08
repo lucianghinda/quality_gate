@@ -1,0 +1,28 @@
+[
+  {
+    "context": "UserImporter#call",
+    "lines": [5],
+    "message": "is controlled by argument 'flag'",
+    "smell_type": "ControlParameter",
+    "source": "app/models/user_importer.rb",
+    "argument": "flag",
+    "documentation_link": "https://github.com/troessner/reek/blob/v6.5.0/docs/Control-Parameter.md"
+  },
+  {
+    "context": "UserImporter#call",
+    "lines": [2],
+    "message": "has 5 parameters",
+    "smell_type": "LongParameterList",
+    "source": "app/models/user_importer.rb",
+    "count": 5,
+    "documentation_link": "https://github.com/troessner/reek/blob/v6.5.0/docs/Long-Parameter-List.md"
+  },
+  {
+    "context": "ReportBuilder",
+    "lines": [1, 14],
+    "message": "has no descriptive comment",
+    "smell_type": "IrresponsibleModule",
+    "source": "app/services/report_builder.rb",
+    "documentation_link": "https://github.com/troessner/reek/blob/v6.5.0/docs/Irresponsible-Module.md"
+  }
+]

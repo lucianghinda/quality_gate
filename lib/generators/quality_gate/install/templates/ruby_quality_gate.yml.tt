@@ -1,0 +1,40 @@
+# # Output format: "text" or "json".
+# format: text
+#
+# # Optional file paths passed to RuboCop and Reek; empty means the project scope.
+# files: []
+#
+# # Plain Ruby adapters run by each gate, in order.
+adapters:
+  fast:
+    - rubocop
+  verify:
+    - reek
+    - test_suite
+<% if @profile.coverage? %>    - undercover
+<% end %>  audit:
+    - bundler_audit
+
+# # Command overrides by gate.
+commands:
+  fast: {}
+  verify:
+    test_suite:
+<% @profile.test_command.each do |argument| %>      - <%= JSON.generate(argument) %>
+<% end %>  audit: {}
+
+# # Command timeouts in seconds.
+timeouts:
+  default: 120
+  rubocop: 10
+  test_suite: 120
+  undercover: 120
+
+# # Aggregate SimpleCov budgets. Leave the entire mapping commented to disable coverage budgeting.
+# coverage:
+
+# # Git ref or commit for Undercover; blank selects the comparison point automatically.
+# compare_point:
+
+# # Explicit RuboCop config path; blank uses host config when present, otherwise the shipped config.
+# rubocop_config:

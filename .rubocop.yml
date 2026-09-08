@@ -1,0 +1,59 @@
+# This gem is linted by the configuration it ships, so the Sandi Metz budgets in
+# config/rubocop.yml apply to its own code. Existing violations are frozen in
+# .rubocop_todo.yml; see the ratchet section of the README before adding to it.
+inherit_mode:
+  merge:
+    - Exclude
+
+inherit_from:
+  - config/rubocop.yml
+  - .rubocop_todo.yml
+
+AllCops:
+  TargetRubyVersion: 3.2
+  NewCops: disable
+  SuggestExtensions: false
+  Exclude:
+    - test/fixtures/acceptance/**/*
+    - test/fixtures/rubocop_integration/**/*
+
+# The gem is a plain library, so Rails application conventions do not apply to it.
+# It still ships rubocop-rails for the host projects that inherit config/rubocop.yml.
+Rails:
+  Enabled: false
+
+# Sandi Metz rules one and two, exempted here rather than in the shipped config
+# because a relative path only resolves correctly in a project's own file.
+Metrics/MethodLength:
+  Exclude:
+    - test/**/*
+
+Metrics/ClassLength:
+  Exclude:
+    - test/**/*
+
+Minitest/AssertTruthy:
+  # These suites assert on booleans parsed out of YAML and JSON, where the value
+  # has to be `true` and not merely truthy. `assert` would accept "yes" or 1.
+  Enabled: false
+
+Minitest/RefuteFalse:
+  # Same reason as Minitest/AssertTruthy.
+  Enabled: false
+
+Performance/Detect:
+  # The receivers here are Enumerators from Pathname#ascend. Enumerable has no
+  # #reverse, so the suggested `reverse.find` raises NoMethodError.
+  Enabled: false
+
+Performance/UnfreezeString:
+  # These suites build deliberately mutable strings to prove the production code
+  # copies and freezes what it is handed. `String.new` states that; `+""` hides it.
+  Exclude:
+    - test/**/*
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes

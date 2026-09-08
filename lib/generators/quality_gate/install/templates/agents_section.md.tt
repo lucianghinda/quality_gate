@@ -1,0 +1,15 @@
+<!-- quality_gate agent contract — start -->
+## Quality Gate agent contract
+
+Run `bundle exec quality_gate fast` after Ruby edits. Installed Claude Code hooks can run `bundle exec quality_gate verify` automatically at session end; other clients, including Codex, must run `bundle exec quality_gate verify` manually before you finish a change. Run `bundle exec quality_gate audit` before you merge security-sensitive work.
+
+Fix findings before you continue editing.
+
+- Exit 0 means the gate ran clean.
+- Exit 1 means the gate reported findings and no tool failures.
+- Exit 2 means the gate could not complete cleanly because of invalid input, configuration, or another tool failure.
+
+The default fast path keeps feedback tight with a 10-second RuboCop timeout. Verify and audit keep the broader suite work on the 120-second default timeout.
+
+If the automatic hook becomes unavailable, inspect `log/quality_gate_hooks.jsonl`, run `bundle install`, and reinstall the hook with `bin/rails generate quality_gate:install --agents`.
+<!-- quality_gate agent contract — end -->

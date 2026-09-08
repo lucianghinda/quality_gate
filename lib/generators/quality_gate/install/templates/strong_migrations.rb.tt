@@ -1,0 +1,10 @@
+# frozen_string_literal: true
+
+require 'strong_migrations'
+
+<%= strong_migrations_provenance %>
+<% if (version = strong_migrations_baseline) -%>
+StrongMigrations.start_after = <%= migration_version_literal(version) %>
+<% else -%>
+# Set StrongMigrations.start_after after the first migration exists.
+<% end -%>

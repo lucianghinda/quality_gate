@@ -1,0 +1,37 @@
+QualityGate/AssociationDefaultBlockValue:
+  Description: 'Defer request-context association defaults in a callable.'
+  Enabled: false
+  VersionAdded: '0.1.0'
+  Safe: true
+
+QualityGate/PreferAfterSaveCommit:
+  Description: 'Use after_save_commit for literal create and update commit callbacks.'
+  Enabled: false
+  VersionAdded: '0.1.0'
+  Safe: true
+  SafeAutoCorrect: true
+
+QualityGate/PrivateOnlyConcern:
+  Description: 'Review concerns that expose only private instance behavior.'
+  Enabled: false
+  VersionAdded: '0.1.0'
+  Safe: false
+  ConcernPaths: []
+
+QualityGate/BroadcastInController:
+  Description: 'Review controller broadcasts for model ownership.'
+  Enabled: false
+  VersionAdded: '0.1.0'
+  Safe: false
+  Include:
+    - '**/app/controllers/**/*.rb'
+  AllowedMethods: []
+
+QualityGate/ControllerInstanceVariables:
+  Description: 'Limit a controller action to one instance variable (Sandi Metz rule four).'
+  Enabled: false
+  VersionAdded: '0.1.0'
+  Safe: true
+  Max: 1
+  Include:
+    - '**/app/controllers/**/*.rb'

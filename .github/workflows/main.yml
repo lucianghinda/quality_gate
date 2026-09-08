@@ -1,0 +1,55 @@
+name: Ruby
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Ruby ${{ matrix.ruby }}
+    strategy:
+      matrix:
+        ruby:
+          - '3.2'
+          - '4.0.1'
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - name: Run the default task
+        run: bundle exec rake
+      - name: Run Quality Gate verify
+        shell: ruby {0}
+        run: |
+          require "json"
+          require "open3"
+
+          revision, status = Open3.capture2("git", "rev-list", "--parents", "-n", "1", "HEAD")
+          abort "Could not inspect commit parents" unless status.success?
+          output, status = Open3.capture2("bundle", "exec", "quality_gate", "verify", "--format", "json")
+          puts output
+          exit(status.exitstatus || 2) unless revision.split.length == 1 && status.exitstatus == 1
+
+          report = JSON.parse(output)
+          findings = report.fetch("findings")
+          checks = report.fetch("checks").map { |check| [check.fetch("tool"), check.fetch("status")] }
+          expected_checks = [["test_suite", "clean"], ["undercover", "skipped"], ["simplecov", "clean"]]
+          initial_skip = findings.length == 1 && findings.first.fetch("tool") == "undercover" &&
+            findings.first.fetch("rule") == "undercover_skipped" && findings.first.fetch("severity") == "info"
+          exit 1 unless initial_skip && checks.sort == expected_checks.sort && report.fetch("summary").fetch("tool_failures").zero?
+
+          puts "Initial commit: accepting the diff coverage skip; tests and aggregate coverage budgets passed."

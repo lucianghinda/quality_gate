@@ -1,0 +1,32 @@
+{
+  "version": "0.9.3",
+  "created_at": "2026-08-28T00:00:00Z",
+  "results": [
+    {
+      "type": "unpatched_gem",
+      "gem": {
+        "name": "actionpack",
+        "version": "7.1.5.1"
+      },
+      "advisory": {
+        "id": "CVE-2025-24293",
+        "cve": "2025-24293",
+        "ghsa": "wq4h-7r42-5hrr",
+        "patched_versions": [">= 7.1.5.2"]
+      }
+    },
+    {
+      "type": "unpatched_gem",
+      "gem": {
+        "name": "rack",
+        "version": "3.0.10"
+      },
+      "advisory": {
+        "id": "GHSA-cj83-2ww7-mg7c",
+        "cve": null,
+        "ghsa": "cj83-2ww7-mg7c",
+        "patched_versions": [">= 3.0.11", "~> 2.2.10"]
+      }
+    }
+  ]
+}

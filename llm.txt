@@ -1,0 +1,13 @@
+# Quality Gate
+
+Quality Gate provides staged Ruby code-quality checks through one CLI and
+configuration contract. See the README for installation, gate commands,
+configuration, and optional RuboCop conventions.
+
+## Documentation
+
+- [README](README.md)
+- [Codex integration](docs/codex.md)
+- [Validation and limitations](docs/dogfood-log.md)
+- [Incident workflow](docs/incidents.md)
+- [Releasing](docs/releasing.md)

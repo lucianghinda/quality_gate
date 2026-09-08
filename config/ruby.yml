@@ -1,0 +1,8 @@
+inherit_from: rubocop.yml
+
+# Plain Ruby projects do not load Rails or Rails-specific cops.
+Rails:
+  Enabled: false
+
+QualityGate/ControllerInstanceVariables:
+  Enabled: false

@@ -1,0 +1,69 @@
+{
+  "scan_info": {
+    "app_path": "/tmp/quality-gate-brakeman-fixture",
+    "rails_version": "8.0.2",
+    "security_warnings": 3,
+    "start_time": "2026-08-28 10:00:00 +0300",
+    "end_time": "2026-08-28 10:00:01 +0300",
+    "duration": 1.0,
+    "checks_performed": ["CheckSQL", "CheckCrossSiteScripting"],
+    "number_of_controllers": 1,
+    "number_of_models": 1,
+    "number_of_templates": 1,
+    "ruby_version": "4.0.1",
+    "brakeman_version": "8.0.6"
+  },
+  "warnings": [
+    {
+      "warning_type": "SQL Injection",
+      "warning_code": 0,
+      "fingerprint": "0a7d9fbec9403b73c90d2f553c43e259d11554ce4e290377a7792546525366d4",
+      "check_name": "SQL",
+      "message": "Possible SQL injection near line 14: User.where(\"name = '#{params[:name]}'\")",
+      "file": "app/controllers/users_controller.rb",
+      "line": 14,
+      "link": "https://brakemanscanner.org/docs/warning_types/sql_injection/",
+      "code": "User.where(\"name = '#{params[:name]}'\")",
+      "render_path": null,
+      "location": { "type": "method", "class": "UsersController", "method": "show" },
+      "user_input": "params[:name]",
+      "confidence": "High",
+      "cwe_id": [89]
+    },
+    {
+      "warning_type": "Cross-Site Scripting",
+      "warning_code": 2,
+      "fingerprint": "5d58ff531d9ca4b11ea20ab0eb52ab93c55d7d70009541ae5c0622bc2c879db1",
+      "check_name": "CrossSiteScripting",
+      "message": "Unescaped parameter value",
+      "file": "app/views/users/show.html.erb",
+      "line": 8,
+      "link": "https://brakemanscanner.org/docs/warning_types/cross_site_scripting/",
+      "code": "params[:bio]",
+      "render_path": null,
+      "location": { "type": "template", "template": "users/show" },
+      "user_input": "params[:bio]",
+      "confidence": "Medium",
+      "cwe_id": [79]
+    },
+    {
+      "warning_type": "Cross-Site Scripting",
+      "warning_code": 2,
+      "fingerprint": "80e67dd6138c624fd7880dbe710a0fa73b9bfb59b63f8f4f4a8299fa0bac24dc",
+      "check_name": "CrossSiteScripting",
+      "message": "Parameter value rendered with limited context",
+      "file": "app/views/users/show.html.erb",
+      "line": null,
+      "link": "https://brakemanscanner.org/docs/warning_types/cross_site_scripting/",
+      "code": "params[:caption]",
+      "render_path": null,
+      "location": { "type": "template", "template": "users/show" },
+      "user_input": "params[:caption]",
+      "confidence": "Weak",
+      "cwe_id": [79]
+    }
+  ],
+  "ignored_warnings": [],
+  "errors": [],
+  "obsolete": []
+}
