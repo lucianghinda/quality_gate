@@ -1340,6 +1340,7 @@ module QualityGate
         )
       end
     ensure
+      trigger&.close
       observer&.join
     end
 

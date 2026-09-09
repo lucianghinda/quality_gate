@@ -141,6 +141,8 @@ module QualityGate
         return result unless result == -1
 
         raise SystemCallError.new(function_name.to_s, Fiddle.last_error)
+      rescue Unsupported
+        raise
       rescue Fiddle::DLError, NotImplementedError => e
         raise Unsupported, e.message
       end
@@ -194,7 +196,7 @@ module QualityGate
               if path
                 return false if $LOADED_FEATURES.include?(path)
 
-                loaded = path.end_with?(".bundle") ? original_require.bind_call(self, path) : load(path)
+                loaded = path.end_with?(".rb") ? load(path) : original_require.bind_call(self, path)
                 $LOADED_FEATURES << path unless $LOADED_FEATURES.include?(path)
                 loaded || true
               else
@@ -213,7 +215,7 @@ module QualityGate
         root = bundled_fiddle_root
         {
           "fiddle" => File.join(root, "fiddle.rb"),
-          "fiddle.so" => File.join(root, "fiddle.bundle"),
+          "fiddle.so" => File.join(root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"),
           "fiddle/closure" => File.join(root, "fiddle", "closure.rb"),
           "fiddle/function" => File.join(root, "fiddle", "function.rb"),
           "fiddle/version" => File.join(root, "fiddle", "version.rb"),

@@ -613,6 +613,11 @@ module QualityGate
         "PATH" => [workspace.fetch(:bin), ENV.fetch("PATH")].join(File::PATH_SEPARATOR),
         "BUNDLE_BIN_PATH" => nil,
         "BUNDLE_GEMFILE" => nil,
+        # Exercise the standalone hook with Ruby's bundled gems, outside CI's bundle path.
+        "GEM_HOME" => Gem.default_dir,
+        "GEM_PATH" => Gem.default_dir,
+        "RUBYLIB" => nil,
+        "RUBYOPT" => nil,
         "CLAUDE_PROJECT_DIR" => workspace.fetch(:project),
         "INVOCATION_LOG" => workspace.fetch(:invocation_log),
         "FAKE_GIT_EXIT" => "0",
