@@ -66,7 +66,10 @@ module QualityGate
       with_host do |host|
         stdout, stderr = run_generator(host)
 
-        assert_empty stderr
+        assert_empty stderr, generator_diagnostic(stdout, stderr)
+        AGENT_FILES.each do |relative_path|
+          assert_path_exists File.join(host, relative_path), generator_diagnostic(stdout, stderr)
+        end
         AGENT_HOOKS.each do |relative_path, template_name|
           assert_equal expected_template(template_name), read(host, relative_path)
           assert_equal 0o755, File.stat(File.join(host, relative_path)).mode & 0o777
@@ -1328,8 +1331,9 @@ module QualityGate
             with_host do |host|
               stdout, stderr = run_generator(host)
 
-              assert_empty stderr
-              assert_includes summary_entries(stdout, "Written"), ".claude/settings.json"
+              assert_empty stderr, generator_diagnostic(stdout, stderr)
+              assert_includes summary_entries(stdout, "Written"), ".claude/settings.json",
+                              generator_diagnostic(stdout, stderr)
             end
           end
         end
@@ -2099,6 +2103,10 @@ module QualityGate
     def run_generator(host, *arguments, behavior: :invoke)
       # Agent integration tests explicitly opt in to the generator's agent surface.
       capture_io { InstallGenerator.start(["--agents", *arguments], destination_root: host, behavior:) }
+    end
+
+    def generator_diagnostic(stdout, stderr)
+      "generator stdout:\n#{stdout}\ngenerator stderr:\n#{stderr}"
     end
 
     def expected_template(name)

@@ -23,12 +23,10 @@ module QualityGate
     def test_agents_are_opt_in_and_reinstallation_is_idempotent
       with_project("test/test_helper.rb") do |root|
         options = { agents: true }
-        Installer.new(destination_root: root, options:, stdout: StringIO.new).call
+        run_successful_installer(root, options)
         first = managed_snapshot(root)
 
-        status = run_installer(root, options)
-
-        assert_equal 0, status
+        run_successful_installer(root, options)
         assert_equal first, managed_snapshot(root)
         assert_agent_artifacts(root)
       end
@@ -136,6 +134,16 @@ module QualityGate
 
     def run_installer(root, options)
       Installer.new(destination_root: root, options:, stdout: StringIO.new).call
+    end
+
+    def run_successful_installer(root, options)
+      output = StringIO.new
+      status = Installer.new(destination_root: root, options:, stdout: output).call
+      assert_equal 0, status, installer_diagnostic(status, output)
+    end
+
+    def installer_diagnostic(status, output)
+      "installer returned #{status}\nstdout:\n#{output.string}"
     end
 
     def write_existing_configs(root)
