@@ -9,6 +9,8 @@ module QualityGate
       end
 
       def call(result)
+        print_checks(result.checks)
+
         result.findings.each do |finding|
           io.puts(render_finding(finding))
         end
@@ -19,6 +21,26 @@ module QualityGate
       private
 
       attr_reader :io
+
+      def print_checks(checks)
+        return if checks.empty?
+
+        checks.each { |check| io.puts(render_check(check)) }
+      end
+
+      def render_check(check)
+        format(
+          "%<tool>-12s %<status>-12s %<scope>-18s %<duration>8dms",
+          tool: FieldSanitizer.for_text(check[:tool]),
+          status: FieldSanitizer.for_text(check[:status]),
+          scope: FieldSanitizer.for_text(check[:scope]),
+          duration: duration_ms_for(check)
+        )
+      end
+
+      def duration_ms_for(check)
+        Integer(check[:duration_ms], exception: false) || 0
+      end
 
       def render_finding(finding)
         lines = FieldSanitizer.for_text_message(finding.message).split("\n", -1)

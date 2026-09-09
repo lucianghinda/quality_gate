@@ -45,11 +45,16 @@ The built-in fast path is meant for changed files:
 bundle exec quality_gate fast --files app/models/user.rb
 ```
 
-`verify` records coverage while it runs the full test suite, then checks changed code with Undercover. A clean `verify` or `audit` run prints this clean summary:
+`verify` records coverage while it runs the full test suite, then checks changed code with Undercover. A clean `verify` or `audit` run prints this clean summary: one line per tool that ran, naming its status, scope, and duration, then the tally:
 
 ```text
+reek         clean        project                 312ms
+test_suite   clean        test_suite           189137ms
+undercover   clean        git_diff                619ms
 0 findings, 0 tool failures
 ```
+
+(Durations above are illustrative, not measured figures.) These tool lines make a clean run visible: you see every tool that ran, not just an absence of findings.
 
 Use `--files` to select paths for RuboCop and Reek; the first path follows the option and further paths follow it as separate arguments:
 
@@ -57,7 +62,14 @@ Use `--files` to select paths for RuboCop and Reek; the first path follows the o
 bundle exec quality_gate fast --files lib/quality_gate.rb test/test_quality_gate.rb
 ```
 
-Paths must exist, including paths from the configuration file. Any missing path returns exit `2` before tools run. A bare `fast` scans the project; it does not discover changed files automatically.
+Paths must exist, including paths from the configuration file. Any missing path returns exit `2` before tools run. A bare `fast` scans the project; it does not discover changed files automatically. RuboCop is the only default fast adapter, so a clean bare `fast` run prints one tool line then the tally:
+
+```text
+rubocop      clean        project                  842ms
+0 findings, 0 tool failures
+```
+
+(842ms above is illustrative, not a measured figure.)
 
 | Adapter | Scope with `--files` |
 | --- | --- |
@@ -82,13 +94,23 @@ The repository config must also use exactly `text` or `json` for `format`; any o
 
 ## Output contract
 
-Gate text output includes tool, severity, location when available, rule, and message:
+Gate text output prints, in order: one line per tool that ran, then findings, then the tally.
+
+When at least one tool ran, each gets a line naming the tool, its status, what it inspected, and how long it took:
+
+```text
+<tool> <status> <scope> <duration>ms
+```
+
+`status` is `clean`, `findings`, `tool_failure`, or `skipped`; `scope` describes what the tool inspected, such as `project`, `selected_files`, `git_diff`, `test_suite`, `coverage_summary`, or `lockfile`. These lines distinguish a clean run, which always names its tools, from a run where nothing executed. An empty adapter list runs no tools and prints none of these lines.
+
+Findings come next, with tool, severity, location when available, rule, and message:
 
 ```text
 <tool> <severity> <file>:<line> <rule> <message>
 ```
 
-Multiline messages retain indented detail lines. Findings without a source location omit it rather than printing `:0`. The final gate output line is the summary:
+Multiline messages retain indented detail lines. Findings without a source location omit it rather than printing `:0`. The final gate output line is unchanged, the summary:
 
 ```text
 <n> findings, <m> tool failures

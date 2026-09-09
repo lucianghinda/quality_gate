@@ -940,12 +940,14 @@ module QualityGate
       InjectedAdaptersCLI.use_adapters("fast", [StaticAdapter.new([finding])])
 
       status, stdout, stderr = run_cli(%w[fast], cli: InjectedAdaptersCLI)
+      lines = stdout.lines(chomp: true)
 
       assert_equal ExitCode::FINDINGS, status
+      assert_check_row(lines.fetch(0), tool: "static", status: "findings", scope: "unknown")
       assert_equal [
         "rubocop warning lib/example.rb:7 Layout/LineLength Line is too long",
         "1 findings, 0 tool failures"
-      ], stdout.lines(chomp: true)
+      ], lines.drop(1)
       assert_empty stderr
     end
 
@@ -1107,11 +1109,14 @@ module QualityGate
       in_directory_with_config(yaml) do |dir|
         status, stdout, stderr = run_cli(%w[fast], dir: dir)
 
+        lines = stdout.lines(chomp: true)
+
         assert_equal ExitCode::TOOL_FAILURE, status
+        assert_check_row(lines.fetch(0), tool: "unknown_adapter", status: "tool_failure", scope: "unknown")
         assert_equal [
           "unknown_adapter error tool_failure unknown adapter unknown_adapter",
           "1 findings, 1 tool failures"
-        ], stdout.lines(chomp: true)
+        ], lines.drop(1)
         assert_empty stderr
       end
     end
@@ -1126,12 +1131,15 @@ module QualityGate
       in_directory_with_config(yaml) do |dir|
         status, stdout, stderr = run_cli(%w[fast], dir: dir)
 
+        lines = stdout.lines(chomp: true)
+
         assert_equal ExitCode::TOOL_FAILURE, status
+        assert_check_row(lines.fetch(0), tool: "bad   [31mtool", status: "tool_failure", scope: "unknown")
         assert_equal [
           "bad   [31mtool error tool_failure unknown adapter bad",
           "   [31mtool",
           "1 findings, 1 tool failures"
-        ], stdout.lines(chomp: true)
+        ], lines.drop(1)
         assert_empty stderr
       end
     end
@@ -1153,11 +1161,14 @@ module QualityGate
           cli: RegistryBackedCLI
         )
 
+        lines = stdout.lines(chomp: true)
+
         assert_equal ExitCode::FINDINGS, status
+        assert_check_row(lines.fetch(0), tool: "rubocop", status: "findings", scope: "selected_files")
         assert_equal [
           "rubocop warning lib/example.rb:7 Layout/LineLength Line is too long",
           "1 findings, 0 tool failures"
-        ], stdout.lines(chomp: true)
+        ], lines.drop(1)
         assert_empty stderr
         assert_equal ["app/models/user.rb"], RecordingRegistryAdapter.files
         assert_same diagnostic_io, RecordingRegistryAdapter.diagnostic_io
@@ -1369,6 +1380,12 @@ module QualityGate
       Dir.mktmpdir do |first|
         Dir.mktmpdir { |second| yield first, second }
       end
+    end
+
+    # Runner timings vary by machine, so match the check row's layout and leave the duration free.
+    def assert_check_row(line, tool:, status:, scope:)
+      literal = format("%<tool>-12s %<status>-12s %<scope>-18s ", tool: tool, status: status, scope: scope)
+      assert_match(/\A#{Regexp.escape(literal)}\s*\d+ms\z/, line)
     end
   end
 

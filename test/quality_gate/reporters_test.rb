@@ -84,6 +84,95 @@ module QualityGate
       ], io.string.lines(chomp: true)
     end
 
+    def test_checks_are_printed_as_a_table_before_findings_and_the_summary
+      io = StringIO.new
+      result = Runner::Result.new(
+        findings: [],
+        checks: [
+          { tool: "test_suite", status: "clean", scope: "test_suite", requested_files: [], duration_ms: 189_137 },
+          { tool: "undercover", status: "clean", scope: "git_diff", requested_files: [], duration_ms: 619 },
+          { tool: "simplecov", status: "clean", scope: "coverage_summary", requested_files: [], duration_ms: 0 }
+        ]
+      )
+
+      Reporters::Text.new(io: io).call(result)
+
+      assert_equal [
+        "test_suite   clean        test_suite           189137ms",
+        "undercover   clean        git_diff                619ms",
+        "simplecov    clean        coverage_summary          0ms",
+        "0 findings, 0 tool failures"
+      ], io.string.lines(chomp: true)
+    end
+
+    def test_no_checks_table_is_printed_when_checks_are_empty
+      io = StringIO.new
+      result = Runner::Result.new(findings: [], checks: [])
+
+      Reporters::Text.new(io: io).call(result)
+
+      assert_equal "0 findings, 0 tool failures\n", io.string
+    end
+
+    def test_a_non_clean_check_status_is_printed_in_the_table
+      io = StringIO.new
+      result = Runner::Result.new(
+        findings: [Finding.tool_failure(tool: "reek", message: "timed out")],
+        checks: [
+          { tool: "reek", status: "tool_failure", scope: "selected_files", requested_files: [], duration_ms: 42 }
+        ]
+      )
+
+      Reporters::Text.new(io: io).call(result)
+
+      assert_equal [
+        "reek         tool_failure selected_files           42ms",
+        "reek error tool_failure timed out",
+        "1 findings, 1 tool failures"
+      ], io.string.lines(chomp: true)
+    end
+
+    def test_check_fields_are_sanitized_against_terminal_escape_injection
+      io = StringIO.new
+      result = Runner::Result.new(
+        findings: [],
+        checks: [
+          {
+            tool: "rub\e[31mocop",
+            status: "clean",
+            scope: "selected_files",
+            requested_files: [],
+            duration_ms: 4
+          }
+        ]
+      )
+
+      Reporters::Text.new(io: io).call(result)
+
+      line = io.string.lines(chomp: true).first
+      refute_includes line, "\e"
+      assert_includes line, "rub [31mocop"
+    end
+
+    def test_check_duration_falls_back_to_zero_for_a_nil_or_non_numeric_value
+      io = StringIO.new
+      result = Runner::Result.new(
+        findings: [],
+        checks: [
+          { tool: "rubocop", status: "clean", scope: "selected_files", requested_files: [], duration_ms: nil },
+          { tool: "reek", status: "clean", scope: "selected_files", requested_files: [], duration_ms: "oops" }
+        ]
+      )
+
+      Reporters::Text.new(io: io).call(result)
+
+      assert_equal [
+        "rubocop      clean        selected_files            0ms",
+        "reek         clean        selected_files            0ms",
+        "0 findings, 0 tool failures"
+      ], io.string.lines(chomp: true)
+    end
+
     def test_text_reporter_scrubs_invalid_utf8_without_mutating_the_finding
       io = StringIO.new
       invalid_tool = "rub\xFFocop".dup.force_encoding(Encoding::UTF_8)
