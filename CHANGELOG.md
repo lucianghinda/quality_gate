@@ -1,3 +1,8 @@
+## [0.1.1] - 2026-09-10
+
+- Text gate output now lists each tool that ran with its status, scope, and duration, so a clean run is distinguishable from a run where nothing executed.
+- The installer no longer injects a coverage block into a test helper that already calls `SimpleCov.start`; it reports the skip and names what to confirm.
+
 ## [0.1.0] - 2026-09-08
 
 - Layered fast, verify, and audit gates with structured findings for Ruby projects.

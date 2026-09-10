@@ -1,0 +1,4 @@
+# lib/quality_gate/version.rb is required by quality_gate.gemspec, so Bundler
+# loads it before test_helper.rb starts SimpleCov. It never appears in coverage
+# data, which would make every version bump report as uncovered changed code.
+--exclude-files lib/quality_gate/version.rb
