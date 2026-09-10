@@ -22,6 +22,7 @@ module QualityGate
     ].freeze
     MARKER_START = "# quality_gate coverage — start"
     MARKER_END = "# quality_gate coverage — end"
+    EXISTING_SIMPLECOV_START = /SimpleCov\s*\.\s*start\b/
     AGENT_CONTRACT_START = "<!-- quality_gate agent contract — start -->"
     AGENT_CONTRACT_END = "<!-- quality_gate agent contract — end -->"
     AGENT_TEMPLATE_PATHS = {
@@ -424,6 +425,7 @@ module QualityGate
     def install_coverage(path, relative_path)
       original = File.binread(path)
       return record(:unchanged, relative_path) if original.include?(MARKER_START.b)
+      return skip_existing_simplecov(relative_path) if EXISTING_SIMPLECOV_START.match?(original)
       return record_pretend_skip(relative_path) if options[:pretend]
 
       content = content_with_coverage(original)
@@ -657,6 +659,12 @@ module QualityGate
     def skip_missing_test_helper
       say "Warning: Minitest coverage wiring skipped; test/test_helper.rb is missing."
       record(:skipped, "test/test_helper.rb (missing; Minitest coverage wiring skipped)")
+    end
+
+    def skip_existing_simplecov(relative_path)
+      say "Warning: coverage wiring skipped; #{relative_path} already calls SimpleCov.start. " \
+          "Confirm it enables branch coverage and loads the Undercover formatter."
+      record(:skipped, "#{relative_path} (already starts SimpleCov; coverage wiring skipped)")
     end
 
     def record_pretend_skip(relative_path)

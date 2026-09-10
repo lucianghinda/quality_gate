@@ -130,10 +130,60 @@ module QualityGate
       end
     end
 
+    def test_helper_that_already_starts_simplecov_is_left_untouched
+      with_project("test/test_helper.rb") do |root|
+        helper_path = File.join(root, "test/test_helper.rb")
+        File.write(helper_path, hand_rolled_coverage_helper)
+        output = StringIO.new
+
+        status = Installer.new(destination_root: root, options: {}, stdout: output).call
+
+        assert_equal 0, status
+        assert_equal hand_rolled_coverage_helper, File.read(helper_path)
+        assert_includes output.string, "already calls SimpleCov.start"
+      end
+    end
+
+    def test_helper_that_already_starts_simplecov_reports_a_skip_not_a_failure
+      with_project("test/test_helper.rb") do |root|
+        File.write(File.join(root, "test/test_helper.rb"), hand_rolled_coverage_helper)
+        output = StringIO.new
+
+        Installer.new(destination_root: root, options: {}, stdout: output).call
+
+        assert_includes output.string, "already starts SimpleCov; coverage wiring skipped"
+        assert_includes output.string, "Needs a person:\nSkipped:"
+      end
+    end
+
+    def test_repeated_installs_never_stack_a_second_coverage_block
+      with_project("test/test_helper.rb") do |root|
+        helper_path = File.join(root, "test/test_helper.rb")
+        run_installer(root, {})
+        after_first = File.read(helper_path)
+
+        run_installer(root, {})
+
+        assert_equal after_first, File.read(helper_path)
+        assert_equal 1, File.read(helper_path).scan("# quality_gate coverage — start").length
+      end
+    end
+
     private
 
     def run_installer(root, options)
       Installer.new(destination_root: root, options:, stdout: StringIO.new).call
+    end
+
+    def hand_rolled_coverage_helper
+      <<~HELPER
+        # frozen_string_literal: true
+
+        require "simplecov"
+        SimpleCov.start do
+          enable_coverage :branch
+        end
+      HELPER
     end
 
     def run_successful_installer(root, options)
