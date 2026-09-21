@@ -161,6 +161,33 @@ module QualityGate
         end
       end
 
+      def test_remote_main_is_used_on_a_detached_checkout_without_a_local_main
+        in_repository(initial_branch: "main") do |dir, base_commit|
+          git(dir, "checkout", "-b", "feature")
+          commit_file(dir, "feature.rb", "feature\n", "feature")
+          git(dir, "update-ref", "refs/remotes/origin/main", base_commit)
+          git(dir, "checkout", "--detach")
+          git(dir, "branch", "-D", "main")
+
+          Dir.chdir(dir) do
+            assert_equal base_commit, build_adapter.compare_point
+          end
+        end
+      end
+
+      def test_remote_master_is_used_when_no_main_exists
+        in_repository(initial_branch: "master") do |dir, base_commit|
+          git(dir, "checkout", "-b", "feature")
+          commit_file(dir, "feature.rb", "feature\n", "feature")
+          git(dir, "update-ref", "refs/remotes/origin/master", base_commit)
+          git(dir, "branch", "-D", "master")
+
+          Dir.chdir(dir) do
+            assert_equal base_commit, build_adapter.compare_point
+          end
+        end
+      end
+
       # rubocop:disable Metrics/AbcSize
       def test_missing_coverage_is_checked_before_comparison_and_does_not_start_undercover
         Dir.mktmpdir do |dir|
@@ -270,6 +297,20 @@ module QualityGate
 
           assert_includes finding.message, "detached"
           assert_includes finding.message, "no shared ancestor"
+          refute adapter.command_started
+        end
+      end
+
+      def test_detached_checkout_without_any_default_branch_reports_the_missing_branch
+        in_repository(initial_branch: "main") do |dir, _base_commit|
+          commit_file(dir, "second.rb", "second\n", "second")
+          git(dir, "checkout", "--detach")
+          git(dir, "branch", "-D", "main")
+
+          finding, adapter = skip_finding_in(dir)
+
+          assert_includes finding.message, "default branch main is missing"
+          refute_includes finding.message, "no shared ancestor"
           refute adapter.command_started
         end
       end
