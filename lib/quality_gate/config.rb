@@ -34,6 +34,7 @@ module QualityGate
       compare_point: nil,
       rubocop_config: nil
     }.freeze
+    FORMATS = %w[text json markdown].map!(&:freeze).freeze
     ADAPTER_LAYERS = %i[fast verify audit].freeze
     COVERAGE_KEYS = %i[minimum_line minimum_branch].freeze
     private_constant :ADAPTER_LAYERS, :COVERAGE_KEYS
@@ -95,9 +96,9 @@ module QualityGate
       end
 
       def validate_format(format, path)
-        return if %w[text json].include?(format)
+        return if FORMATS.include?(format)
 
-        fail ConfigError.new(path: path, cause_message: "format must be text or json") # rubocop:disable Style/SignalException
+        fail ConfigError.new(path: path, cause_message: "format must be text, json, or markdown") # rubocop:disable Style/SignalException
       end
 
       def validate_files(files, path)

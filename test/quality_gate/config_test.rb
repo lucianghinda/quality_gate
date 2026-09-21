@@ -226,7 +226,22 @@ module QualityGate
     end
 
     def test_invalid_format_value_is_rejected
-      assert_invalid_config("format: xml\n", "format must be text or json")
+      assert_invalid_config("format: xml\n", "format must be text, json, or markdown")
+    end
+
+    def test_markdown_format_is_accepted
+      Dir.mktmpdir do |dir|
+        File.write(File.join(dir, ".quality_gate.yml"), "format: markdown\n")
+
+        config = Config.load(dir: dir)
+
+        assert_equal "markdown", config.fetch(:format)
+      end
+    end
+
+    def test_formats_constant_lists_every_accepted_reporter
+      assert_equal %w[text json markdown], Config::FORMATS
+      assert_predicate Config::FORMATS, :frozen?
     end
 
     def test_adapters_must_be_a_mapping

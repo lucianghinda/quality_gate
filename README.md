@@ -82,15 +82,16 @@ rubocop      clean        project                  842ms
 
 `verify --files app/models/user.rb` therefore narrows Reek, but still runs the full suite and checks Git changes. JSON includes each adapter's scope and status. When stderr is a terminal, progress names each tool before it starts; redirected output and hook invocations remain quiet except for diagnostics.
 
-Choose text or JSON output with `--format text` or `--format json`:
+Choose text, JSON, or Markdown output with `--format text`, `--format json`, or `--format markdown`:
 
 ```sh
 bundle exec quality_gate verify --format json
+bundle exec quality_gate verify --format markdown
 ```
 
 The shorter form `quality_gate version` works when the installed executable is already on your `PATH`.
 
-The repository config must also use exactly `text` or `json` for `format`; any other configured value is rejected as a configuration error before a gate runs.
+The repository config must also use exactly `text`, `json`, or `markdown` for `format`; any other configured value is rejected as a configuration error before a gate runs.
 
 ## Output contract
 
@@ -170,6 +171,23 @@ Example:
 When `--format json` is requested, input/configuration failures use the same report envelope with a `quality_gate` tool failure and exit `2`. Use an explicit format flag if malformed YAML might prevent loading your configured format. Inspect exit status as well as the report; a process that cannot start or write stdout cannot produce a JSON report. Help and version remain plain text.
 
 Consumers should tolerate additive JSON fields. Existing finding and summary fields retain their meanings. An informational Undercover skip remains a finding and returns exit `1`; it is not proof that changed code was covered.
+
+Markdown output is for pasting into agent notes, pull request comments, and chat. It prints a level-two heading with the tally, a checks table when at least one tool ran, and a findings list when there are findings:
+
+```markdown
+## Quality Gate: 1 findings, 0 tool failures
+
+| Tool | Status | Scope | Duration |
+| --- | --- | --- | --- |
+| rubocop | findings | selected_files | 1240ms |
+
+### Findings
+
+- **rubocop** warning `lib/a.rb:4` Layout/First: First message
+  Second message line
+```
+
+Locations are code spans, extra message lines are indented under their finding, and pipe characters in table cells are escaped. Message punctuation is escaped so diagnostic HTML and Markdown markers display literally. Input and configuration errors keep the plain-text stderr behaviour; only JSON has a machine-readable error envelope.
 
 ## Configuration
 

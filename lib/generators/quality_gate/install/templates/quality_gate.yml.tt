@@ -1,4 +1,4 @@
-# # Output format: "text" or "json".
+# # Output format: "text", "json", or "markdown".
 # format: text
 #
 # # Optional file paths passed to adapters; empty means no configured restriction.

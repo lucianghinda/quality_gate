@@ -166,7 +166,7 @@ module QualityGate
 
             overrides[:files] = [path]
           end
-          parser.on("--format FORMAT", %w[text json]) { |format| overrides[:format] = format }
+          parser.on("--format FORMAT", Config::FORMATS) { |format| overrides[:format] = format }
           parser.on("-h", "--help") { overrides[:help] = true }
         end
       end
@@ -241,10 +241,9 @@ module QualityGate
 
       def reporter_for(format, stdout:)
         case format
-        when "json"
-          Reporters::Json.new(io: stdout)
-        else
-          Reporters::Text.new(io: stdout)
+        when "json" then Reporters::Json.new(io: stdout)
+        when "markdown" then Reporters::Markdown.new(io: stdout)
+        else Reporters::Text.new(io: stdout)
         end
       end
 
@@ -296,7 +295,7 @@ module QualityGate
 
           Options:
             --files PATH [PATH ...]  Replace configured paths for this run; files and directories are allowed
-            --format FORMAT         Choose text or json output (also accepts --format=FORMAT)
+            --format FORMAT         Choose text, json, or markdown output (also accepts --format=FORMAT)
             -h, --help              Show this help
 
           Scope:
@@ -308,6 +307,7 @@ module QualityGate
             quality_gate fast
             quality_gate fast --files app/models/user.rb test/models
             quality_gate verify --format json
+            quality_gate verify --format markdown
 
           Exit status:
             0  Checks completed cleanly
@@ -326,7 +326,7 @@ module QualityGate
 
           Options:
             --files PATH [PATH ...]  Replace configured paths for this run; files and directories are allowed
-            --format FORMAT         Choose text or json output (also accepts --format=FORMAT)
+            --format FORMAT         Choose text, json, or markdown output (also accepts --format=FORMAT)
             -h, --help              Show this help
 
           Scope:
@@ -362,7 +362,7 @@ module QualityGate
             --pretend               Preview changes without writing them
             -h, --help              Show this help
 
-          Init writes a human-readable summary. Gate commands continue to support text and JSON output.
+          Init writes a human-readable summary. Gate commands continue to support text, JSON, and Markdown output.
 
           Examples:
             quality_gate init
@@ -396,7 +396,7 @@ module QualityGate
         contents = File.read(path)
         document = YAML.safe_load(contents)
         format = document.is_a?(Hash) && document["format"]
-        return format if %w[text json].include?(format)
+        return format if Config::FORMATS.include?(format)
 
         nil
       rescue Psych::Exception, SystemCallError, SystemStackError

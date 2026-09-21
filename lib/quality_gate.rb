@@ -5,6 +5,7 @@ require_relative "quality_gate/exit_code"
 require_relative "quality_gate/finding"
 require_relative "quality_gate/reporters/field_sanitizer"
 require_relative "quality_gate/reporters/json"
+require_relative "quality_gate/reporters/markdown"
 require_relative "quality_gate/reporters/text"
 require_relative "quality_gate/hook_log"
 

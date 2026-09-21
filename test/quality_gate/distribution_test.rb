@@ -74,6 +74,7 @@ module QualityGate
     lib/quality_gate/adapters/test_suite.rb
     lib/quality_gate/adapters/undercover.rb
     lib/quality_gate/reporters/text.rb
+    lib/quality_gate/reporters/markdown.rb
     lib/quality_gate/reporters/json.rb
     sig/quality_gate.rbs
   ].freeze

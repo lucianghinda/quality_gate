@@ -1,5 +1,6 @@
 ## [Unreleased]
 
+- Gate commands accept `--format markdown` and `format: markdown`, printing a heading with the tally, a checks table, and a findings list for agents and pull request comments.
 - The repository's own `.undercover` keeps Undercover's default test exclusions next to the version file exclusion.
 
 ## [0.1.1] - 2026-09-10
