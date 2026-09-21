@@ -78,6 +78,7 @@ module QualityGate
         assert_includes stdout, "reek, test_suite, undercover"
         assert_includes stdout, "quality_gate verify --files"
         assert_includes stdout, "--format=FORMAT"
+        assert_includes stdout, "text, json, or markdown"
       end
     end
 
@@ -169,7 +170,7 @@ module QualityGate
         assert_empty stdout
         assert_equal 1, stderr.lines.length
         assert_includes stderr, path
-        assert_includes stderr, "format must be text or json"
+        assert_includes stderr, "format must be text, json, or markdown"
       end
     end
 
@@ -692,6 +693,30 @@ module QualityGate
       end
     end
 
+    def test_explicit_markdown_format_overrides_configured_json
+      in_directory_with_config("format: json\n") do |dir|
+        RecordingCLI.reset
+        status, stdout, stderr = run_cli(%w[verify --format=markdown], dir: dir)
+
+        assert_equal ExitCode::TOOL_FAILURE, status
+        assert_empty stdout
+        assert_empty stderr
+        assert_equal "markdown", RecordingCLI.settings.fetch(:format)
+      end
+    end
+
+    def test_configured_markdown_format_reaches_dispatch
+      in_directory_with_config("format: markdown\n") do |dir|
+        RecordingCLI.reset
+        status, stdout, stderr = run_cli(%w[audit], dir: dir)
+
+        assert_equal ExitCode::TOOL_FAILURE, status
+        assert_empty stdout
+        assert_empty stderr
+        assert_equal "markdown", RecordingCLI.settings.fetch(:format)
+      end
+    end
+
     def test_explicit_invalid_format_keeps_text_error_behavior_over_configured_json
       in_directory_with_config("format: json\n") do |dir|
         status, stdout, stderr = run_cli(%w[verify --format=xml], dir: dir)
@@ -759,6 +784,19 @@ module QualityGate
         payload = JSON.parse(stdout)
         assert_equal ["quality_gate"], payload.fetch("summary").fetch("failed_tools")
         assert_includes payload.fetch("findings").first.fetch("message"), "missing.rb"
+      end
+    end
+
+    def test_configured_markdown_format_reports_pre_dispatch_errors_as_text
+      in_directory_with_config("format: markdown\nfiles:\n  - missing.rb\n") do |dir|
+        status, stdout, stderr = run_cli(%w[fast], dir: dir)
+
+        assert_equal ExitCode::TOOL_FAILURE, status
+        assert_empty stdout
+        assert_equal 1, stderr.lines.length
+        assert_includes stderr, "missing files or directories: missing.rb"
+        refute_includes stderr, "{"
+        refute_includes stderr, "## Quality Gate"
       end
     end
 
@@ -969,6 +1007,33 @@ module QualityGate
 
       assert_equal ExitCode::TOOL_FAILURE, status
       assert_equal ["reek"], JSON.parse(stdout).fetch("summary").fetch("failed_tools")
+      assert_empty stderr
+    end
+
+    def test_injected_findings_use_the_markdown_reporter_when_requested
+      finding = Finding.new(
+        tool: "rubocop",
+        file: "lib/example.rb",
+        line: 7,
+        rule: "Layout/LineLength",
+        severity: :warning,
+        message: "Line is too long"
+      )
+      InjectedAdaptersCLI.use_adapters("fast", [StaticAdapter.new([finding])])
+
+      status, stdout, stderr = run_cli(%w[fast --format markdown], cli: InjectedAdaptersCLI)
+      lines = stdout.lines(chomp: true)
+
+      assert_equal ExitCode::FINDINGS, status
+      assert_equal "## Quality Gate: 1 findings, 0 tool failures", lines.fetch(0)
+      assert_equal "| Tool | Status | Scope | Duration |", lines.fetch(2)
+      assert_match(/\A\| static \| findings \| unknown \| \d+ms \|\z/, lines.fetch(4))
+      assert_equal [
+        "",
+        "### Findings",
+        "",
+        "- **rubocop** warning `lib/example.rb:7` Layout/LineLength: Line is too long"
+      ], lines.drop(5)
       assert_empty stderr
     end
 

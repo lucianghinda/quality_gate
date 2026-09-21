@@ -189,6 +189,11 @@ module QualityGate
       def initialize: (io: _Output) -> void
       def call: (Runner::Result result) -> nil
     end
+
+    class Markdown
+      def initialize: (io: _Output) -> void
+      def call: (Runner::Result result) -> nil
+    end
   end
 
   type finding_severity = :error | :warning | :info

@@ -324,6 +324,191 @@ module QualityGate
     end
   end
 
+  class MarkdownReporterTest < Minitest::Test
+    def test_clean_run_prints_only_the_summary_heading
+      io = StringIO.new
+      result = Runner::Result.new(findings: [])
+
+      Reporters::Markdown.new(io: io).call(result)
+
+      assert_equal "## Quality Gate: 0 findings, 0 tool failures\n", io.string
+    end
+
+    def test_checks_are_printed_as_a_table_after_the_heading
+      io = StringIO.new
+      result = Runner::Result.new(
+        findings: [],
+        checks: [
+          { tool: "test_suite", status: "clean", scope: "test_suite", requested_files: [], duration_ms: 189_137 },
+          { tool: "undercover", status: "clean", scope: "git_diff", requested_files: [], duration_ms: nil }
+        ]
+      )
+
+      Reporters::Markdown.new(io: io).call(result)
+
+      assert_equal [
+        "## Quality Gate: 0 findings, 0 tool failures",
+        "",
+        "| Tool | Status | Scope | Duration |",
+        "| --- | --- | --- | --- |",
+        "| test_suite | clean | test_suite | 189137ms |",
+        "| undercover | clean | git_diff | 0ms |"
+      ], io.string.lines(chomp: true)
+    end
+
+    def test_table_cells_escape_pipes_and_drop_terminal_escapes
+      io = StringIO.new
+      result = Runner::Result.new(
+        findings: [],
+        checks: [
+          { tool: "rub|o\e[31mcop", status: "clean", scope: "selected_files", requested_files: [], duration_ms: 4 }
+        ]
+      )
+
+      Reporters::Markdown.new(io: io).call(result)
+
+      row = io.string.lines(chomp: true).fetch(4)
+      assert_equal "| rub\\|o [31mcop | clean | selected_files | 4ms |", row
+    end
+
+    def test_findings_are_listed_under_a_heading_with_location_rules
+      io = StringIO.new
+      result = Runner::Result.new(
+        findings: [
+          build_finding(
+            tool: "rubocop",
+            file: "lib/a.rb",
+            line: 4,
+            rule: "Layout/First",
+            message: "First line\nSecond line"
+          ),
+          build_finding(tool: "bundler_audit", file: "Gemfile.lock", line: 0, rule: "CVE-1", message: "unsafe"),
+          Finding.tool_failure(tool: "reek", message: "timed out")
+        ]
+      )
+
+      Reporters::Markdown.new(io: io).call(result)
+
+      assert_equal [
+        "## Quality Gate: 3 findings, 1 tool failures",
+        "",
+        "### Findings",
+        "",
+        "- **rubocop** warning `lib/a.rb:4` Layout/First: First line",
+        "  Second line",
+        "- **bundler_audit** warning `Gemfile.lock` CVE-1: unsafe",
+        "- **reek** error tool_failure: timed out"
+      ], io.string.lines(chomp: true)
+    end
+
+    def test_message_html_and_entities_are_preserved_as_literal_text
+      io = StringIO.new
+      finding = build_finding(
+        tool: "test_suite", file: "", line: 0, rule: "test_failure",
+        message: "Expected <div> but got <span> &amp; — “literal”"
+      )
+
+      Reporters::Markdown.new(io: io).call(Runner::Result.new(findings: [finding]))
+
+      assert_includes io.string, 'Expected \<div\> but got \<span\> \&amp\; — “literal”'
+      assert_equal "Expected <div> but got <span> &amp; — “literal”", finding.message
+    end
+
+    def test_message_markdown_markers_are_preserved_as_literal_text
+      io = StringIO.new
+      finding = build_finding(
+        tool: "test_suite", file: "", line: 0, rule: "test_failure",
+        message: "first\n# heading\n- item\n1. item\n**bold** [link](url) `code`\n~~~\npath\\name"
+      )
+
+      Reporters::Markdown.new(io: io).call(Runner::Result.new(findings: [finding]))
+
+      assert_equal [
+        "- **test_suite** warning test_failure: first",
+        '  \# heading',
+        '  \- item',
+        '  1\. item',
+        '  \*\*bold\*\* \[link\]\(url\) \`code\`',
+        '  \~\~\~',
+        "  path\\\\name"
+      ], io.string.lines(chomp: true).drop(4)
+    end
+
+    def test_checks_come_before_findings
+      io = StringIO.new
+      result = Runner::Result.new(
+        findings: [build_finding(tool: "rubocop", file: "lib/a.rb", line: 4, rule: "Layout/First", message: "Msg")],
+        checks: [{ tool: "rubocop", status: "findings", scope: "selected_files", requested_files: [], duration_ms: 9 }]
+      )
+
+      Reporters::Markdown.new(io: io).call(result)
+
+      assert_equal [
+        "## Quality Gate: 1 findings, 0 tool failures",
+        "",
+        "| Tool | Status | Scope | Duration |",
+        "| --- | --- | --- | --- |",
+        "| rubocop | findings | selected_files | 9ms |",
+        "",
+        "### Findings",
+        "",
+        "- **rubocop** warning `lib/a.rb:4` Layout/First: Msg"
+      ], io.string.lines(chomp: true)
+    end
+
+    def test_markdown_reporter_scrubs_invalid_utf8_without_mutating_the_finding
+      io = StringIO.new
+      invalid_tool = "rub\xFFocop".dup.force_encoding(Encoding::UTF_8)
+      invalid_message = "bad\xFFmessage".dup.force_encoding(Encoding::UTF_8)
+      finding = Finding.new(
+        tool: invalid_tool,
+        file: "lib/example.rb",
+        line: 7,
+        rule: "Layout/LineLength",
+        severity: :warning,
+        message: invalid_message
+      )
+
+      Reporters::Markdown.new(io: io).call(Runner::Result.new(findings: [finding]))
+
+      assert_predicate io.string, :valid_encoding?
+      assert_includes io.string, "**rub�ocop**"
+      assert_includes io.string, "bad�message"
+      refute_predicate finding.tool, :valid_encoding?
+      refute_predicate finding.message, :valid_encoding?
+    end
+
+    def test_locations_with_backticks_use_a_longer_code_span_fence
+      io = StringIO.new
+      result = Runner::Result.new(
+        findings: [
+          build_finding(tool: "rubocop", file: "lib/a`b.rb", line: 4, rule: "Layout/First", message: "Msg"),
+          build_finding(tool: "rubocop", file: "lib/c``d.rb", line: 0, rule: "Layout/First", message: "Msg")
+        ]
+      )
+
+      Reporters::Markdown.new(io: io).call(result)
+
+      assert_equal [
+        "- **rubocop** warning `` lib/a`b.rb:4 `` Layout/First: Msg",
+        "- **rubocop** warning ``` lib/c``d.rb ``` Layout/First: Msg"
+      ], io.string.lines(chomp: true).drop(4)
+    end
+
+    private
+
+    def build_finding(tool:, file:, line:, rule:, message:, severity: :warning)
+      Finding.new(
+        tool: tool,
+        file: file,
+        line: line,
+        rule: rule,
+        severity: severity,
+        message: message
+      )
+    end
+  end
+
   class TextReporterTest
     private
 
