@@ -1,4 +1,4 @@
-## [Unreleased]
+## [0.2.0] - 2026-09-21
 
 - Gate commands accept `--format markdown` and `format: markdown`, printing a heading with the tally, a checks table, and a findings list for agents and pull request comments.
 - Undercover falls back to `origin/main` or `origin/master` when `origin/HEAD` and the local default branch are absent, so verify checks the diff on CI pull request checkouts instead of skipping. A missing default branch is now reported as missing rather than as a detached checkout.
