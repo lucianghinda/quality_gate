@@ -1,3 +1,7 @@
+## [Unreleased]
+
+- The repository's own `.undercover` keeps Undercover's default test exclusions next to the version file exclusion.
+
 ## [0.1.1] - 2026-09-10
 
 - Text gate output now lists each tool that ran with its status, scope, and duration, so a clean run is distinguishable from a run where nothing executed.
