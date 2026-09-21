@@ -10,7 +10,10 @@ module QualityGate
       COVERAGE_PATH = "coverage/coverage.json"
       SKIP_RULE = "undercover_skipped"
       CLI_FOOTER_PATTERN = /\nUndercover finished in \d+(?:\.\d+)?s\n\z/
-      private_constant :CLI_FOOTER_PATTERN
+      NAMED_DEFAULT_BRANCH_REFS = %w[main master].flat_map do |branch|
+        ["refs/heads/#{branch}", "refs/remotes/origin/#{branch}"]
+      end.freeze
+      private_constant :CLI_FOOTER_PATTERN, :NAMED_DEFAULT_BRANCH_REFS
 
       def name = "undercover"
 
@@ -144,7 +147,7 @@ module QualityGate
 
       def skip_reason
         return "Undercover skipped: repository is shallow; set compare_point explicitly." if shallow_repository?
-        return detached_reason if detached_head?
+        return detached_reason if detached_head? && default_branch_present?
         return first_commit_reason if first_commit?
         return missing_branch_reason unless default_branch_present?
 
@@ -201,7 +204,7 @@ module QualityGate
       def default_branch_ref
         return @default_branch_ref if defined?(@default_branch_ref)
 
-        @default_branch_ref = remote_default_branch || local_default_branch
+        @default_branch_ref = remote_default_branch || named_default_branch
       end
 
       def remote_default_branch
@@ -217,19 +220,12 @@ module QualityGate
         branch
       end
 
-      def local_default_branch
-        %w[main master].each do |branch|
-          ref = "refs/heads/#{branch}"
-          next unless commit_exists?(ref)
-
-          @default_branch_present = true
-          @default_branch_name = branch
-          return ref
-        end
-
-        @default_branch_present = false
-        @default_branch_name = "main"
-        "refs/heads/main"
+      # Local branches win, but a CI pull request checkout often has only the remote-tracking ref.
+      def named_default_branch
+        ref = NAMED_DEFAULT_BRANCH_REFS.find { commit_exists?(_1) }
+        @default_branch_present = !ref.nil?
+        @default_branch_name = ref ? ref.split("/").last : "main"
+        ref || "refs/heads/main"
       end
 
       def merge_base(branch)

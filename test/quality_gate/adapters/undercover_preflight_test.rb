@@ -182,8 +182,11 @@ module QualityGate
         "#{json}\nUndercover finished in 0.0123s\n"
       end
 
+      # origin/HEAD, then main and master as local and remote-tracking refs, are all absent.
       def missing_branch_responses
         [
+          response(status: 1),
+          response(status: 1),
           response(status: 1),
           response(status: 1),
           response(status: 1),
