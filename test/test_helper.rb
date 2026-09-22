@@ -5,6 +5,13 @@ if ENV["COVERAGE"] == "1"
   require "simplecov"
   require "undercover/simplecov_formatter"
 
+  worker_directory = ENV.delete("QUALITY_GATE_TEST_COVERAGE")
+  if worker_directory
+    SimpleCov.coverage_path(worker_directory)
+    SimpleCov.command_name(File.basename(worker_directory))
+    SimpleCov.finalize_merge(false)
+  end
+
   coverage_directory = File.expand_path(SimpleCov.coverage_path)
   FileUtils.mkdir_p(coverage_directory)
   coverage_lock = File.open(

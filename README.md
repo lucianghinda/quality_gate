@@ -581,13 +581,25 @@ Clone the repository and install its dependencies:
 bin/setup
 ```
 
-Run the tests, lint checks, or complete default task:
+Run the tests in two separate Ruby processes, lint checks, or complete serial default task:
 
 ```sh
-bundle exec rake test
+bundle exec rake test:parallel
 bundle exec rubocop
 bundle exec rake
 ```
+
+`TEST_WORKERS=4 bundle exec rake test:parallel` changes the worker count.
+`bundle exec rake test` preserves the serial runner and its Minitest filtering
+options; `test:parallel` accepts the same `N`, `X`, and `A` filters. Named latency
+checks (`QUALITY_GATE_ACCEPTANCE_TIMING=1`) always use one worker so concurrent
+tests do not distort their measurements.
+
+This repository's `quality_gate verify` uses the parallel task. Each worker writes
+isolated coverage results; the parent merges them and generates reports only after
+every worker succeeds and supplies coverage. `TEST_WORKERS=1 bundle exec quality_gate verify`
+runs the same coverage pipeline with one worker. CI runs RuboCop separately and
+lets verify run the full suite once per Ruby version.
 
 The gem is linted by the configuration it ships, so the Sandi Metz budgets apply to its own code. Violations that predate those budgets are frozen file by file in `.rubocop_todo.yml`, which keeps the gate green while forcing new code to meet the budgets. That file is a ratchet: it may only shrink. When you change a file listed there, bring it under the budget and delete its entry; never add one. Regenerate it only after such a burn-down:
 
