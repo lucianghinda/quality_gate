@@ -629,8 +629,9 @@ module QualityGate
     end
 
     def fake_bundle
+      # This stand-in only needs default JSON; skip RubyGems startup per invocation.
       <<~RUBY
-        #!#{RbConfig.ruby}
+        #!#{RbConfig.ruby} --disable-gems
         require "json"
 
         File.open(ENV.fetch("INVOCATION_LOG"), "a") do |io|

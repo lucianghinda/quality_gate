@@ -250,7 +250,7 @@ module QualityGate
     end
 
     # rubocop:disable Metrics/AbcSize
-    def test_ci_uses_full_history_and_dogfoods_verify_after_the_default_task
+    def test_ci_uses_full_history_and_runs_verify_after_lint_without_duplicate_tests
       workflow = YAML.safe_load_file(WORKFLOW)
       steps = workflow.fetch("jobs").fetch("build").fetch("steps")
       checkout = steps.find { _1["uses"] == "actions/checkout@v6" }
@@ -258,15 +258,16 @@ module QualityGate
       assert_equal 0, checkout.dig("with", "fetch-depth")
       assert_equal false, checkout.dig("with", "persist-credentials")
 
-      default_task_index = steps.index { _1["name"] == "Run the default task" && _1["run"] == "bundle exec rake" }
+      lint_index = steps.index { _1["name"] == "Run RuboCop" && _1["run"] == "bundle exec rake rubocop" }
       verify_index = steps.index do
         _1["name"] == "Run Quality Gate verify" &&
         _1["run"].include?('Open3.capture2("bundle", "exec", "quality_gate", "verify", "--format", "json")')
       end
 
-      refute_nil default_task_index
+      refute_nil lint_index
       refute_nil verify_index
-      assert_operator verify_index, :>, default_task_index
+      assert_operator verify_index, :>, lint_index
+      refute(steps.any? { ["bundle exec rake", "bundle exec rake test"].include?(_1["run"]) })
       assert_equal "ruby {0}", steps.fetch(verify_index).fetch("shell")
     end
     # rubocop:enable Metrics/AbcSize

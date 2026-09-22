@@ -46,7 +46,7 @@ module QualityGate
       config = YAML.safe_load_file(CONFIG)
 
       assert_equal %w[commands adapters coverage timeouts], config.keys
-      assert_equal %w[bundle exec rake test], config.dig("commands", "verify", "test_suite")
+      assert_equal %w[bundle exec rake test:parallel], config.dig("commands", "verify", "test_suite")
       assert_equal %w[test_suite undercover simplecov], config.dig("adapters", "verify")
       assert_equal({ "minimum_line" => 96, "minimum_branch" => 83 }, config.fetch("coverage"))
       assert_equal({ "test_suite" => 240 }, config.fetch("timeouts"))

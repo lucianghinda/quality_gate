@@ -4,7 +4,10 @@ require "test_helper"
 require "open3"
 require "rbconfig"
 require "yaml"
+require "rake"
+require "minitest/mock"
 require_relative "support/acceptance_project"
+require_relative "support/parallel_runner"
 
 class RakefileTest < Minitest::Test
   ROOT = File.expand_path("..", __dir__)
@@ -40,7 +43,36 @@ class RakefileTest < Minitest::Test
     assert_includes exclusions, "test/fixtures/acceptance/**/*"
   end
 
+  def test_parallel_task_propagates_success_and_failure
+    with_loaded_rakefile do
+      assert_silent { invoke_parallel_task(success: true) }
+      # Re-loading the Rakefile resets Ruby's coverage counters for its other outcome.
+      Rake::Task["test:parallel"].reenable
+      _stdout, stderr = capture_io do
+        error = assert_raises(SystemExit) { invoke_parallel_task(success: false) }
+        assert_equal 1, error.status
+      end
+
+      assert_includes stderr, "Parallel tests failed"
+    end
+  end
+
   private
+
+  def with_loaded_rakefile
+    Rake.with_application do
+      load File.join(ROOT, "Rakefile")
+      yield
+    end
+  end
+
+  def invoke_parallel_task(success:)
+    factory = lambda do |task|
+      assert_instance_of Minitest::TestTask, task
+      -> { success }
+    end
+    ParallelTestRunner.stub(:new, factory) { Rake::Task["test:parallel"].invoke }
+  end
 
   def load_acceptance_support
     Open3.capture3(
