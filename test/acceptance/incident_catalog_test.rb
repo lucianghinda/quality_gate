@@ -203,7 +203,9 @@ module Acceptance
     end
 
     def test_malformed_cli_report_fails_with_complete_subprocess_diagnostics
-      acceptance_project.open(fixture: "clean", repository_root: ROOT) do |project|
+      Dir.mktmpdir("quality-gate-report-diagnostic") do |directory|
+        # The command is stubbed below, so this case needs no generated host.
+        project = acceptance_project.send(:new, directory:, fixture: "clean", repository_root: ROOT)
         process_status = Data.define(:exitstatus).new(2)
         capture = ->(*) { ["not-json", "broken stderr", process_status] }
 

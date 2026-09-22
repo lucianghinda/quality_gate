@@ -679,8 +679,9 @@ module QualityGate
 
     def fake_command(command)
       prefix = command.upcase
+      # This stand-in only needs default JSON; skip RubyGems startup per invocation.
       <<~RUBY
-        #!#{RbConfig.ruby}
+        #!#{RbConfig.ruby} --disable-gems
         require "json"
 
         File.open(ENV.fetch("INVOCATION_LOG"), "a") do |io|

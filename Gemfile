@@ -10,3 +10,4 @@ gem "railties", "~> 8.0"
 gem "rake", "~> 13.0"
 
 gem "minitest", "~> 5.16"
+gem "test-prof", "~> 1.6.3", group: :test, require: false

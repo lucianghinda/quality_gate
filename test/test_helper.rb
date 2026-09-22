@@ -47,3 +47,5 @@ $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 require "quality_gate"
 
 require "minitest/autorun"
+
+require_relative "support/profiling" if ENV.delete("QUALITY_GATE_PROFILE") == "1"
