@@ -1,3 +1,7 @@
+## [0.2.1] - 2026-09-22
+
+- Undercover reports stale coverage as an actionable `stale_coverage` finding with gate exit 1, telling operators to re-run the test suite before the coverage gate, instead of a parse failure with exit 2. Unknown validation reasons also fail closed and include their value; malformed output and CLI exit-status checks remain strict.
+
 ## [0.2.0] - 2026-09-21
 
 - Gate commands accept `--format markdown` and `format: markdown`, printing a heading with the tally, a checks table, and a findings list for agents and pull request comments.

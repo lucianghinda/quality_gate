@@ -26,7 +26,7 @@ module QualityGate
         end
       end
 
-      def test_parse_rejects_stale_validation_and_invalid_summary_contracts
+      def test_parse_rejects_invalid_summary_contracts
         invalid_documents.each do |label, document|
           error = assert_raises(ParseError, label) { build_adapter.parse(JSON.generate(document)) }
 
@@ -69,7 +69,7 @@ module QualityGate
         warnings = JSON.parse(File.read(File.expand_path("../../fixtures/undercover/warnings_report.json", __dir__)))
 
         {
-          "non-nil validation" => clean_document.merge("validation" => "stale_coverage"),
+          "non-string validation" => clean_document.merge("validation" => {}),
           "missing summary" => { "warnings" => [] },
           "non-mapping summary" => { "warnings" => [], "summary" => [] },
           "missing total_warnings" => {
