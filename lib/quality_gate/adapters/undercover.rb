@@ -39,8 +39,7 @@ module QualityGate
 
         stdout, stderr, status = capture_with_remaining_timeout(command)
         validate_cli_envelope!(stdout, stderr, status)
-        findings = parse(stdout)
-        validate_cli_result!(status.exitstatus, findings)
+        findings = parse(stdout, exitstatus: status.exitstatus)
         validate_findings!(findings, expected_tool: tool)
         findings
       rescue StandardError => e
@@ -49,11 +48,13 @@ module QualityGate
         clear_call_budget
       end
 
-      def parse(stdout)
+      def parse(stdout, exitstatus: nil)
         document = parsed_document(stdout)
         warnings, summary = report_parts(document)
         findings = warnings.map { finding_from(_1) }
         validate_summary!(summary, warnings)
+        validate_cli_result!(exitstatus, warnings)
+        findings << validation_finding(document["validation"]) unless document["validation"].nil?
         findings
       rescue JSON::ParserError, KeyError, TypeError, ArgumentError => e
         raise ParseError.new(tool: name, reason: e.message)
@@ -97,8 +98,10 @@ module QualityGate
         cli_contract_error!("Undercover output is missing its terminal timing footer")
       end
 
-      def validate_cli_result!(exitstatus, findings)
-        expected_exitstatus = findings.empty? ? 0 : 1
+      def validate_cli_result!(exitstatus, warnings)
+        return if exitstatus.nil?
+
+        expected_exitstatus = warnings.empty? ? 0 : 1
         return if exitstatus == expected_exitstatus
 
         cli_contract_error!("Undercover exit status #{exitstatus} disagrees with its warning count")
@@ -120,7 +123,6 @@ module QualityGate
         summary = document.fetch("summary")
         raise TypeError, "warnings must be an Array" unless warnings.is_a?(Array)
         raise TypeError, "summary must be a mapping" unless summary.is_a?(Hash)
-        raise TypeError, "validation must be nil" unless document["validation"].nil?
 
         [warnings, summary]
       end
@@ -143,6 +145,28 @@ module QualityGate
           severity: :info,
           message: skip_reason
         )
+      end
+
+      def validation_finding(validation)
+        raise TypeError, "validation must be a String or nil" unless validation.is_a?(String)
+
+        Finding.new(
+          tool: name,
+          file: "",
+          line: 0,
+          rule: validation == "stale_coverage" ? "stale_coverage" : "undercover_validation",
+          severity: :error,
+          message: validation_message(validation)
+        )
+      end
+
+      def validation_message(validation)
+        if validation == "stale_coverage"
+          "Undercover coverage data predates the changed files. Re-run the test suite before the coverage gate."
+        else
+          "Undercover validation failed: #{validation.inspect}. Coverage cannot be trusted; " \
+            "resolve the validation issue and re-run the test suite before the coverage gate."
+        end
       end
 
       def skip_reason

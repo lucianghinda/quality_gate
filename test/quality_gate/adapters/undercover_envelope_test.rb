@@ -128,6 +128,48 @@ module QualityGate
         refute findings.any?(&:tool_failure?)
       end
 
+      def test_stale_coverage_exiting_zero_fails_the_gate_with_an_actionable_finding
+        findings = call_adapter(clean_document.merge("validation" => "stale_coverage"), completion: 0)
+
+        assert_equal 1, findings.length
+        finding = findings.fetch(0)
+        refute finding.tool_failure?
+        assert_equal "stale_coverage", finding.rule
+        assert_equal :error, finding.severity
+        assert_equal 1, Runner::Result.new(findings:).exit_code
+      end
+
+      def test_parse_explains_how_to_resolve_stale_coverage
+        adapter = Undercover.new(config: Config.new(Config.defaults))
+        document = clean_document.merge("validation" => "stale_coverage")
+        finding = adapter.parse(JSON.generate(document)).fetch(0)
+
+        assert_includes finding.message, "predates"
+        assert_includes finding.message, "Re-run the test suite"
+      end
+
+      def test_unknown_validation_fails_closed_and_includes_the_value
+        findings = call_adapter(clean_document.merge("validation" => "future_reason"), completion: 0)
+
+        assert_equal 1, findings.length
+        refute findings.fetch(0).tool_failure?
+        assert_includes findings.fetch(0).message, "future_reason"
+        assert_equal 1, Runner::Result.new(findings:).exit_code
+      end
+
+      def test_validation_does_not_bypass_warning_exit_status_contract
+        document = warning_document.merge("validation" => "stale_coverage")
+
+        assert_tool_failure(call_adapter(document, completion: 0))
+        assert_tool_failure(call_adapter(clean_document.merge("validation" => "stale_coverage"), completion: 1))
+      end
+
+      def test_validation_does_not_bypass_summary_validation
+        document = clean_document.merge("validation" => "stale_coverage", "summary" => {})
+
+        assert_tool_failure(call_adapter(document, completion: 0))
+      end
+
       private
 
       def call_adapter(document, completion:, stderr: "")
