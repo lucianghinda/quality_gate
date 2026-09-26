@@ -248,6 +248,10 @@ module QualityGate
       end
 
       def bundled_fiddle_extension_root(specification)
+        library_root = File.join(specification.full_gem_path, "lib")
+        extension = File.join(library_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}")
+        return library_root if File.file?(extension)
+
         root = specification.extension_dir
         extension = File.join(root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}")
         return root if File.file?(extension)
