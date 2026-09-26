@@ -28,9 +28,21 @@ module QualityGate
         Dir.mktmpdir do |dir|
           Dir.chdir(dir) do
             assert_equal(
-              ["reek", "--format", "json", "--config", QualityGate::Adapters::Reek::CONFIG_PATH],
+              ["reek", "--format", "json", "--config", QualityGate::Adapters::Reek::CONFIG_PATH, "."],
               build_adapter.command
             )
+          end
+        end
+      end
+
+      def test_call_scans_the_project_when_no_paths_are_selected
+        Dir.mktmpdir do |dir|
+          File.write(File.join(dir, "smelly.rb"), "class Smelly; def call(a, b, c, d, e); a; end; end\n")
+
+          Dir.chdir(dir) do
+            findings = build_adapter.call
+
+            assert_includes findings.map(&:rule), "LongParameterList"
           end
         end
       end
