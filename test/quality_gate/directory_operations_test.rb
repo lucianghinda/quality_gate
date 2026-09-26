@@ -37,11 +37,17 @@ module QualityGate
           extension_root = specification.extension_dir
           FileUtils.mkdir_p([lib_root, extension_root])
           FileUtils.touch(File.join(lib_root, "fiddle.rb"))
+          bundled_native_path = File.join(lib_root, "fiddle.so")
+          FileUtils.touch(bundled_native_path)
           FileUtils.touch(File.join(extension_root, "fiddle.so"))
           operations = QualityGate::Installation.const_get(:DirectoryOperations, false)
           paths = operations.send(:fiddle_feature_paths)
           native_path = File.join(extension_root, "fiddle.so")
           abort paths.inspect unless paths.fetch("fiddle") == File.join(lib_root, "fiddle.rb")
+          abort paths.inspect unless paths.fetch("fiddle.so") == bundled_native_path
+
+          FileUtils.rm(bundled_native_path)
+          paths = operations.send(:fiddle_feature_paths)
           abort paths.inspect unless paths.fetch("fiddle.so") == native_path
           abort "RubyGems platform path was not used" if native_path.include?("fixture-arch")
 
