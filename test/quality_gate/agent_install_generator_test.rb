@@ -1518,17 +1518,34 @@ module QualityGate
       workers = Array.new(2) do
         Thread.new do
           operations.send(:with_bundled_fiddle_require) do
-            entered << true
+            entered << :entered
             release.pop
           end
+        rescue StandardError => error
+          entered << error
         end
       end
 
-      entered.pop
-      release << true
-      entered.pop
-      release << true
-      workers.each(&:join)
+      wait_for_entry = lambda do
+        event = Timeout.timeout(5) { entered.pop }
+        raise event if event.is_a?(StandardError)
+
+        assert_equal :entered, event
+      end
+
+      begin
+        wait_for_entry.call
+        release << true
+        wait_for_entry.call
+        release << true
+        workers.each(&:value)
+      ensure
+        2.times { release << true }
+        workers.each do |worker|
+          worker.join(1) || worker.kill
+          worker.join
+        end
+      end
 
       restored_require = Kernel.instance_method(:require)
       assert_equal original_require.owner, restored_require.owner

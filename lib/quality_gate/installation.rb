@@ -213,10 +213,12 @@ module QualityGate
       end
 
       def fiddle_feature_paths
-        root = bundled_fiddle_root
+        specification = bundled_fiddle_specification
+        root = bundled_fiddle_root(specification)
+        extension_root = bundled_fiddle_extension_root(specification)
         {
           "fiddle" => File.join(root, "fiddle.rb"),
-          "fiddle.so" => File.join(bundled_fiddle_extension_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"),
+          "fiddle.so" => File.join(extension_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"),
           "fiddle/closure" => File.join(root, "fiddle", "closure.rb"),
           "fiddle/function" => File.join(root, "fiddle", "function.rb"),
           "fiddle/version" => File.join(root, "fiddle", "version.rb"),
@@ -229,26 +231,28 @@ module QualityGate
         }
       end
 
-      def bundled_fiddle_root
-        Dir[File.join(RbConfig::CONFIG["prefix"], "lib/ruby/gems/**/gems/fiddle-*/lib")].max or
-          raise Unsupported, "fiddle support is unavailable"
+      def bundled_fiddle_specification
+        pattern = File.join(
+          RbConfig::CONFIG.fetch("prefix"),
+          "lib/ruby/gems/**/specifications/fiddle-*.gemspec"
+        )
+        Dir[pattern].filter_map { Gem::Specification.load(_1) }.max_by(&:version) ||
+          raise(Unsupported, "fiddle support is unavailable")
       end
 
-      def bundled_fiddle_extension_root
-        root = bundled_fiddle_root
+      def bundled_fiddle_root(specification)
+        root = File.join(specification.full_gem_path, "lib")
+        return root if File.file?(File.join(root, "fiddle.rb"))
+
+        raise Unsupported, "fiddle support is unavailable"
+      end
+
+      def bundled_fiddle_extension_root(specification)
+        root = specification.extension_dir
         extension = File.join(root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}")
         return root if File.file?(extension)
 
-        gem_name = File.basename(File.dirname(root))
-        gem_home = File.expand_path("../../..", root)
-        extension_api = if defined?(Gem) && Gem.respond_to?(:extension_api_version)
-                          Gem.extension_api_version
-                        else
-                          RbConfig::CONFIG.fetch("ruby_version")
-                        end
-        pattern = File.join(gem_home, "extensions", RbConfig::CONFIG.fetch("arch"), extension_api, gem_name)
-        native_root = pattern if File.file?(File.join(pattern, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"))
-        native_root or raise Unsupported, "fiddle native extension is unavailable"
+        raise Unsupported, "fiddle native extension is unavailable"
       end
     end
     PreparedTempfile = Data.define(
