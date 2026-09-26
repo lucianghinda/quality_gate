@@ -58,7 +58,12 @@ module QualityGate
 
       def positional_path(path) = path.start_with?("-") ? File.join(".", path) : path
 
-      def resolved_paths_for_command = @resolved_paths_for_call || existing_paths
+      def resolved_paths_for_command
+        paths = @resolved_paths_for_call || existing_paths
+        return paths unless paths.empty? && files.empty?
+
+        ["."]
+      end
 
       def host_config?
         config_search_directories(inferred_project_root).any? do |dir|

@@ -80,7 +80,7 @@ rubocop      clean        project                  842ms
 | Brakeman | Whole application |
 | bundler-audit | Gemfile.lock |
 
-`verify --files app/models/user.rb` therefore narrows Reek, but still runs the full suite and checks Git changes. JSON includes each adapter's scope and status. When stderr is a terminal, progress names each tool before it starts; redirected output and hook invocations remain quiet except for diagnostics.
+Without `--files`, Reek scans the project root. `verify --files app/models/user.rb` therefore narrows Reek, but still runs the full suite and checks Git changes. JSON includes each adapter's scope and status. When stderr is a terminal, progress names each tool before it starts; redirected output and hook invocations remain quiet except for diagnostics.
 
 Choose text, JSON, or Markdown output with `--format text`, `--format json`, or `--format markdown`:
 
