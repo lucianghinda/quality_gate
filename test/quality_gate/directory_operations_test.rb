@@ -105,18 +105,8 @@ module QualityGate
         specification = Struct.new(:full_gem_path, :extension_dir).new(gem_root, extension_root)
         operations = QualityGate::Installation.const_get(:DirectoryOperations, false)
 
-        assert_raises(operations::Unsupported) { operations.send(:bundled_fiddle_root, specification) }
-        FileUtils.mkdir_p(library_root)
-        FileUtils.touch(File.join(library_root, "fiddle.rb"))
-        assert_equal library_root, operations.send(:bundled_fiddle_root, specification)
-
-        FileUtils.touch(File.join(library_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"))
-        assert_equal library_root, operations.send(:bundled_fiddle_extension_root, specification)
-        FileUtils.rm(File.join(library_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"))
-        assert_raises(operations::Unsupported) { operations.send(:bundled_fiddle_extension_root, specification) }
-        FileUtils.mkdir_p(extension_root)
-        FileUtils.touch(File.join(extension_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"))
-        assert_equal extension_root, operations.send(:bundled_fiddle_extension_root, specification)
+        assert_fiddle_library_root(operations, specification, library_root)
+        assert_fiddle_extension_roots(operations, specification, library_root, extension_root)
       end
     end
 
@@ -127,6 +117,28 @@ module QualityGate
         RbConfig.ruby, "-Ilib", "-rquality_gate/installation", "-e", source
       )
       assert status.success?, "stdout: #{stdout}\nstderr: #{stderr}"
+    end
+
+    def assert_fiddle_library_root(operations, specification, library_root)
+      assert_raises(operations::Unsupported) { operations.send(:bundled_fiddle_root, specification) }
+      FileUtils.mkdir_p(library_root)
+      FileUtils.touch(File.join(library_root, "fiddle.rb"))
+      assert_equal library_root, operations.send(:bundled_fiddle_root, specification)
+    end
+
+    def assert_fiddle_extension_roots(operations, specification, library_root, extension_root)
+      native_name = "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"
+      native_path = File.join(library_root, native_name)
+      assert_raises(operations::Unsupported) { operations.send(:bundled_fiddle_extension_root, specification) }
+
+      FileUtils.touch(native_path)
+      assert_equal library_root, operations.send(:bundled_fiddle_extension_root, specification)
+      FileUtils.rm(native_path)
+      assert_raises(operations::Unsupported) { operations.send(:bundled_fiddle_extension_root, specification) }
+
+      FileUtils.mkdir_p(extension_root)
+      FileUtils.touch(File.join(extension_root, native_name))
+      assert_equal extension_root, operations.send(:bundled_fiddle_extension_root, specification)
     end
   end
 end

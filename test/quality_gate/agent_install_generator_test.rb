@@ -1521,8 +1521,8 @@ module QualityGate
             entered << :entered
             release.pop
           end
-        rescue StandardError => error
-          entered << error
+        rescue StandardError => e
+          entered << e
         end
       end
 
