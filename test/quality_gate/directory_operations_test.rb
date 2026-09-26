@@ -110,6 +110,9 @@ module QualityGate
         FileUtils.touch(File.join(library_root, "fiddle.rb"))
         assert_equal library_root, operations.send(:bundled_fiddle_root, specification)
 
+        FileUtils.touch(File.join(library_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"))
+        assert_equal library_root, operations.send(:bundled_fiddle_extension_root, specification)
+        FileUtils.rm(File.join(library_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"))
         assert_raises(operations::Unsupported) { operations.send(:bundled_fiddle_extension_root, specification) }
         FileUtils.mkdir_p(extension_root)
         FileUtils.touch(File.join(extension_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"))
