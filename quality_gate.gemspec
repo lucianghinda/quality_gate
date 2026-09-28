@@ -33,6 +33,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "brakeman", "~> 8.0"
   spec.add_dependency "bullet", "~> 8.2.0"
   spec.add_dependency "bundler-audit", "~> 0.9.3"
+  spec.add_dependency "fiddle", "~> 1.1"
   spec.add_dependency "reek", "~> 6.5"
   spec.add_dependency "rubocop", "~> 1.90"
   spec.add_dependency "rubocop-minitest", "~> 0.40"

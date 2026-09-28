@@ -3,7 +3,6 @@
 require "erb"
 require "fileutils"
 require "pathname"
-require "rbconfig"
 require "tempfile"
 
 module QualityGate
@@ -63,7 +62,6 @@ module QualityGate
       class Unsupported < StandardError; end
 
       IMPORTER_MUTEX = Mutex.new
-      BUNDLED_REQUIRE_MUTEX = Mutex.new
       LINK_FLAGS = 0
       UNLINK_FLAGS = 0
       O_DIRECTORY = File.const_defined?(:DIRECTORY) ? File::DIRECTORY : 0
@@ -169,86 +167,9 @@ module QualityGate
       end
 
       def load_fiddle_importer!
-        return if defined?(Fiddle::Importer)
-        return load_bundled_fiddle_importer! if ruby4_bundle_fiddle?
-
         require "fiddle/import"
       rescue LoadError => e
         raise Unsupported, e.message
-      end
-
-      def ruby4_bundle_fiddle?
-        RUBY_VERSION.start_with?("4.") && defined?(Bundler)
-      end
-
-      def load_bundled_fiddle_importer!
-        with_bundled_fiddle_require { load(fiddle_feature_paths.fetch("fiddle/import")) }
-      end
-
-      def with_bundled_fiddle_require
-        BUNDLED_REQUIRE_MUTEX.synchronize do
-          original_require = Kernel.instance_method(:require)
-          original_verbose = $VERBOSE
-          feature_paths = fiddle_feature_paths
-          $VERBOSE = nil
-          Kernel.module_eval do
-            define_method(:require) do |feature|
-              path = feature_paths[feature]
-              if path
-                return false if $LOADED_FEATURES.include?(path)
-
-                loaded = path.end_with?(".rb") ? load(path) : original_require.bind_call(self, path)
-                $LOADED_FEATURES << path unless $LOADED_FEATURES.include?(path)
-                loaded || true
-              else
-                original_require.bind_call(self, feature)
-              end
-            end
-          end
-          yield
-        ensure
-          Kernel.module_eval { define_method(:require, original_require) } if original_require
-          $VERBOSE = original_verbose
-        end
-      end
-
-      def fiddle_feature_paths
-        root = bundled_fiddle_root
-        {
-          "fiddle" => File.join(root, "fiddle.rb"),
-          "fiddle.so" => File.join(bundled_fiddle_extension_root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"),
-          "fiddle/closure" => File.join(root, "fiddle", "closure.rb"),
-          "fiddle/function" => File.join(root, "fiddle", "function.rb"),
-          "fiddle/version" => File.join(root, "fiddle", "version.rb"),
-          "fiddle/import" => File.join(root, "fiddle", "import.rb"),
-          "fiddle/struct" => File.join(root, "fiddle", "struct.rb"),
-          "fiddle/cparser" => File.join(root, "fiddle", "cparser.rb"),
-          "fiddle/types" => File.join(root, "fiddle", "types.rb"),
-          "fiddle/value" => File.join(root, "fiddle", "value.rb"),
-          "fiddle/pack" => File.join(root, "fiddle", "pack.rb")
-        }
-      end
-
-      def bundled_fiddle_root
-        Dir[File.join(RbConfig::CONFIG["prefix"], "lib/ruby/gems/**/gems/fiddle-*/lib")].max or
-          raise Unsupported, "fiddle support is unavailable"
-      end
-
-      def bundled_fiddle_extension_root
-        root = bundled_fiddle_root
-        extension = File.join(root, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}")
-        return root if File.file?(extension)
-
-        gem_name = File.basename(File.dirname(root))
-        gem_home = File.expand_path("../../..", root)
-        extension_api = if defined?(Gem) && Gem.respond_to?(:extension_api_version)
-                          Gem.extension_api_version
-                        else
-                          RbConfig::CONFIG.fetch("ruby_version")
-                        end
-        pattern = File.join(gem_home, "extensions", RbConfig::CONFIG.fetch("arch"), extension_api, gem_name)
-        native_root = pattern if File.file?(File.join(pattern, "fiddle.#{RbConfig::CONFIG.fetch("DLEXT")}"))
-        native_root or raise Unsupported, "fiddle native extension is unavailable"
       end
     end
     PreparedTempfile = Data.define(
