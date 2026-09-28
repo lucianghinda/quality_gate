@@ -1506,66 +1506,6 @@ module QualityGate
       assert_equal true, observed[:tempfile_close_on_exec]
     end
 
-    def test_overlapping_bundled_fiddle_require_restores_kernel_require_and_verbose
-      skip unless RUBY_VERSION.start_with?("4.") && defined?(Bundler)
-
-      original_require = Kernel.instance_method(:require)
-      original_verbose = $VERBOSE
-      entered = Queue.new
-      release = Queue.new
-      operations = InstallGenerator.const_get(:DirectoryOperations, false)
-
-      workers = Array.new(2) do
-        Thread.new do
-          operations.send(:with_bundled_fiddle_require) do
-            entered << true
-            release.pop
-          end
-        end
-      end
-
-      entered.pop
-      release << true
-      entered.pop
-      release << true
-      workers.each(&:join)
-
-      restored_require = Kernel.instance_method(:require)
-      assert_equal original_require.owner, restored_require.owner
-      assert_equal original_require.source_location, restored_require.source_location
-      assert_equal original_verbose, $VERBOSE
-    ensure
-      $VERBOSE = original_verbose
-    end
-
-    def test_bundled_fiddle_feature_discovery_failure_restores_false_verbose_and_require
-      skip unless RUBY_VERSION.start_with?("4.") && defined?(Bundler)
-
-      operations = InstallGenerator.const_get(:DirectoryOperations, false)
-      singleton = operations.singleton_class
-      original_require = Kernel.instance_method(:require)
-      original_verbose = $VERBOSE
-      original_method = singleton.instance_method(:fiddle_feature_paths)
-      $VERBOSE = false
-
-      singleton.define_method(:fiddle_feature_paths) do
-        raise InstallGenerator.const_get(:DirectoryOperations, false)::Unsupported, "fiddle support is unavailable"
-      end
-
-      error = assert_raises(InstallGenerator.const_get(:DirectoryOperations, false)::Unsupported) do
-        operations.send(:with_bundled_fiddle_require) { flunk("unexpected yield") }
-      end
-
-      assert_equal "fiddle support is unavailable", error.message
-      assert_equal false, $VERBOSE
-      restored_require = Kernel.instance_method(:require)
-      assert_equal original_require.owner, restored_require.owner
-      assert_equal original_require.source_location, restored_require.source_location
-    ensure
-      singleton.define_method(:fiddle_feature_paths, original_method) if original_method
-      $VERBOSE = original_verbose
-    end
-
     def test_unsupported_claim_acquisition_does_not_report_a_fake_recovery_copy
       stale = <<~MARKDOWN.b
         # Notes

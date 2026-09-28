@@ -23,6 +23,7 @@ module QualityGate
     "rubocop-minitest" => "~> 0.40",
     "brakeman" => "~> 8.0",
     "bundler-audit" => "~> 0.9.3",
+    "fiddle" => "~> 1.1",
     "simplecov" => "~> 1.1.1",
     "undercover" => "~> 0.8.5",
     "strong_migrations" => "~> 2.5.2"

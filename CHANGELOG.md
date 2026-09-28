@@ -1,3 +1,7 @@
+## [0.2.2] - 2026-09-28
+
+- Fiddle is now a runtime dependency, so the installer loads it with a plain `require` on Ruby 4.x under Bundler. This removes the runtime `Kernel#require` patch and the hand-built extension path that missed on hosts where RbConfig and RubyGems spell the platform differently (for example `arm64-darwin25` vs `arm64-darwin-25`).
+
 ## [0.2.1] - 2026-09-22
 
 - Undercover reports stale coverage as an actionable `stale_coverage` finding with gate exit 1, telling operators to re-run the test suite before the coverage gate, instead of a parse failure with exit 2. Unknown validation reasons also fail closed and include their value; malformed output and CLI exit-status checks remain strict.
