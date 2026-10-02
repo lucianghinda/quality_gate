@@ -30,7 +30,7 @@ module Acceptance
 
     def test_fast_gate_accepts_a_long_repository_source_path
       Dir.mktmpdir("quality-gate-long-source-path") do |directory|
-        source = File.join(directory, "quality-gate-source-#{'x' * 100}")
+        source = File.join(directory, "quality-gate-source-#{"x" * 100}")
         File.symlink(ROOT, source)
 
         ruby_project.open(repository_root: source) do |project|

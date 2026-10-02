@@ -1,4 +1,4 @@
-## [Unreleased]
+## [0.2.3] - 2026-10-02
 
 - Reek scans the project when a bare gate invocation has no selected paths.
 - When SimpleCov is enabled in verify, its aggregate summary must come from the current test run.
