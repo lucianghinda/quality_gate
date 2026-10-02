@@ -125,14 +125,10 @@ module QualityGate
 
           source 'https://rubygems.org'
 
-          gem 'quality_gate', path: #{ruby_string_literal(@repository_root)}
+          gem 'quality_gate', path: ENV.fetch('QUALITY_GATE_SOURCE_ROOT')
           gem 'railties', '~> 8.0'
         RUBY
       )
-    end
-
-    def ruby_string_literal(value)
-      "'#{value.gsub(/['\\]/) { "\\#{_1}" }}'"
     end
 
     def lock_bundle
@@ -240,6 +236,7 @@ module QualityGate
         "BUNDLE_GEMFILE" => File.join(@directory, "Gemfile"),
         "BUNDLER_AUDIT_DB" => @advisory_database,
         "PATH" => executable_path,
+        "QUALITY_GATE_SOURCE_ROOT" => @repository_root,
         "RACK_ENV" => "test",
         "RAILS_ENV" => "test",
         "RUBYOPT" => nil,

@@ -30,13 +30,6 @@ class RakefileTest < Minitest::Test
     assert_empty stderr
   end
 
-  def test_acceptance_project_escapes_repository_paths_as_ruby_strings
-    path = "project's\\repository"
-    literal = QualityGate::AcceptanceProject.allocate.send(:ruby_string_literal, path)
-
-    assert_equal path, RubyVM::InstructionSequence.compile(literal).eval
-  end
-
   def test_lint_task_excludes_embedded_acceptance_projects
     exclusions = YAML.safe_load_file(RUBOCOP_CONFIG).fetch("AllCops").fetch("Exclude")
 

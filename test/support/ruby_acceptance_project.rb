@@ -76,13 +76,9 @@ module QualityGate
         source 'https://rubygems.org'
 
         gem 'minitest', '~> 5.16'
-        gem 'quality_gate', path: #{ruby_string_literal(@repository_root)}
+        gem 'quality_gate', path: ENV.fetch('QUALITY_GATE_SOURCE_ROOT')
         gem 'rake', '~> 13.0'
       RUBY
-    end
-
-    def ruby_string_literal(value)
-      "'#{value.gsub(/['\\]/) { "\\#{_1}" }}'"
     end
 
     def bundle_lock
@@ -141,6 +137,7 @@ module QualityGate
         "GIT_CONFIG_GLOBAL" => File::NULL,
         "GIT_CONFIG_NOSYSTEM" => "1",
         "PATH" => executable_path,
+        "QUALITY_GATE_SOURCE_ROOT" => @repository_root,
         "RAILS_ENV" => nil,
         "RACK_ENV" => nil,
         "RUBYOPT" => nil,
