@@ -16,7 +16,7 @@ module QualityGate
 
       def parse(arguments)
         reject_format!(arguments)
-        options = { profile: "ruby", skip_coverage: false, agents: false, pretend: false }
+        options = { profile: "ruby", skip_coverage: false, agents: false, ci: false, pretend: false }
         option_parser(options).parse!(arguments)
         raise OptionParser::InvalidOption, arguments.join(" ") if arguments.any?
 
@@ -62,6 +62,7 @@ module QualityGate
       def boolean_options(parser, options)
         parser.on("--skip-coverage") { options[:skip_coverage] = true }
         parser.on("--agents") { options[:agents] = true }
+        parser.on("--ci") { options[:ci] = true }
         parser.on("--pretend") { options[:pretend] = true }
       end
 

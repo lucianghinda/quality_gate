@@ -78,11 +78,57 @@ module QualityGate
       end
     end
 
+    # rubocop:disable Metrics/AbcSize
+    def test_stale_simplecov_summary_is_not_accepted_after_a_passing_suite
+      in_host_project(coverage: false, adapters: %w[test_suite simplecov]) do |dir|
+        FileUtils.mkdir_p(File.join(dir, "coverage"))
+        File.write(File.join(dir, "coverage", ".last_run.json"), '{"result":{"line":100}}')
+
+        status, report, stderr = run_verify(dir)
+
+        assert_equal ExitCode::TOOL_FAILURE, status, "report: #{report.inspect}; stderr: #{stderr.inspect}"
+        assert_empty stderr
+        finding = report.fetch("findings").fetch(0)
+        assert_equal "simplecov", finding.fetch("tool")
+        assert_equal "tool_failure", finding.fetch("rule")
+        assert_includes finding.fetch("message"), "coverage/.last_run.json"
+      end
+    end
+    # rubocop:enable Metrics/AbcSize
+
+    def test_fresh_simplecov_summary_passes_its_configured_budget
+      in_host_project(adapters: %w[test_suite simplecov]) do |dir|
+        status, report, stderr = run_verify(dir)
+
+        assert_equal ExitCode::CLEAN, status, "report: #{report.inspect}; stderr: #{stderr.inspect}"
+        assert_empty report.fetch("findings")
+        assert_empty stderr
+        assert File.file?(File.join(dir, "coverage", ".last_run.json"))
+      end
+    end
+
+    # rubocop:disable Metrics/AbcSize
+    def test_fresh_simplecov_summary_reports_a_budget_violation
+      in_host_project(adapters: %w[test_suite simplecov], minimum_line: 100) do |dir|
+        write_calculator(dir, include_subtract: true)
+
+        status, report, stderr = run_verify(dir)
+
+        assert_equal ExitCode::FINDINGS, status, "report: #{report.inspect}; stderr: #{stderr.inspect}"
+        assert_empty stderr
+        finding = report.fetch("findings").fetch(0)
+        assert_equal "simplecov", finding.fetch("tool")
+        assert_equal "line_coverage_below_minimum", finding.fetch("rule")
+        assert File.file?(File.join(dir, "coverage", ".last_run.json"))
+      end
+    end
+    # rubocop:enable Metrics/AbcSize
+
     private
 
-    def in_host_project(coverage: true)
+    def in_host_project(coverage: true, adapters: %w[reek test_suite undercover], minimum_line: 95)
       Dir.mktmpdir do |dir|
-        write_config(dir)
+        write_config(dir, adapters:, minimum_line:)
         write_test_helper(dir, coverage:)
         write_calculator(dir)
         write_test(dir)
@@ -91,14 +137,16 @@ module QualityGate
       end
     end
 
-    def write_config(dir)
+    def write_config(dir, adapters:, minimum_line:)
       settings = {
         "commands" => {
           "verify" => {
             "test_suite" => [RbConfig.ruby, "-Itest", "test/calculator_test.rb"]
           }
-        }
+        },
+        "adapters" => { "verify" => adapters }
       }
+      settings["coverage"] = { "minimum_line" => minimum_line } if adapters.include?("simplecov")
       File.write(File.join(dir, ".quality_gate.yml"), YAML.dump(settings))
     end
 

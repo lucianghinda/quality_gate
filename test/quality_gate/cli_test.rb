@@ -281,7 +281,7 @@ module QualityGate
 
           assert_equal ExitCode::CLEAN, status
           assert_equal [{ destination_root: dir, options: {
-            profile: "ruby", skip_coverage: false, agents: false, pretend: false
+            profile: "ruby", skip_coverage: false, agents: false, pretend: false, ci: false
           }, stdout: stdout_io }], FakeInstaller.calls
           assert_empty stderr
         end
@@ -293,7 +293,7 @@ module QualityGate
         Dir.mktmpdir do |dir|
           status, _stdout, stderr, stdout_io = run_cli(
             ["init", "--profile", "ruby", "--test-framework", "rspec", "--test-helper", "spec/spec_helper.rb",
-             "--test-command", "bundle exec rspec", "--skip-coverage", "--agents", "--pretend"],
+             "--test-command", "bundle exec rspec", "--skip-coverage", "--agents", "--ci", "--pretend"],
             dir: dir
           )
 
@@ -305,6 +305,7 @@ module QualityGate
           assert_equal "bundle exec rspec", options.fetch(:test_command)
           assert options.fetch(:skip_coverage)
           assert options.fetch(:agents)
+          assert options.fetch(:ci)
           assert options.fetch(:pretend)
           assert_same stdout_io, FakeInstaller.calls.fetch(0).fetch(:stdout)
           assert_empty stderr
@@ -372,6 +373,7 @@ module QualityGate
         assert_equal ExitCode::CLEAN, status
         assert_includes stdout, "--test-framework NAME"
         assert_includes stdout, "--skip-coverage"
+        assert_includes stdout, "--ci"
         assert_empty stderr
       end
     end
@@ -1068,6 +1070,7 @@ module QualityGate
       assert_equal(
         {
           "reek" => QualityGate::Adapters::Reek,
+          "herb" => QualityGate::Adapters::Herb,
           "rubocop" => QualityGate::Adapters::RuboCop,
           "simplecov" => QualityGate::Adapters::SimpleCov,
           "test_suite" => QualityGate::Adapters::TestSuite,
@@ -1077,6 +1080,11 @@ module QualityGate
         },
         SecurityRegistryCLI.registered_adapters
       )
+    end
+
+    def test_herb_is_registered_but_remains_absent_from_default_fast_adapters
+      assert_equal ["rubocop"], Config.defaults.fetch(:adapters).fetch(:fast)
+      assert_same QualityGate::Adapters::Herb, SecurityRegistryCLI.registered_adapters.fetch("herb")
     end
 
     def test_simplecov_without_a_coverage_budget_fails_before_any_adapter_is_constructed

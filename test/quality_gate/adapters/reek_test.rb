@@ -28,8 +28,19 @@ module QualityGate
         Dir.mktmpdir do |dir|
           Dir.chdir(dir) do
             assert_equal(
-              ["reek", "--format", "json", "--config", QualityGate::Adapters::Reek::CONFIG_PATH],
+              ["reek", "--format", "json", "--config", QualityGate::Adapters::Reek::CONFIG_PATH, "."],
               build_adapter.command
+            )
+          end
+        end
+      end
+
+      def test_command_does_not_replace_an_explicit_selection_that_resolves_empty_with_project_root
+        Dir.mktmpdir do |dir|
+          Dir.chdir(dir) do
+            assert_equal(
+              ["reek", "--format", "json", "--config", QualityGate::Adapters::Reek::CONFIG_PATH],
+              build_adapter(files: ["missing.rb"]).command
             )
           end
         end
@@ -89,6 +100,31 @@ module QualityGate
             )
             refute_includes command, missing
           end
+        end
+      end
+
+      def test_explicit_erb_files_are_filtered_without_dropping_other_selected_targets
+        Dir.mktmpdir do |dir|
+          ruby_file = File.join(dir, "script.rb")
+          erb_file = File.join(dir, "view.html.erb")
+          gemspec = File.join(dir, "example.gemspec")
+          rakefile = File.join(dir, "Rakefile")
+          [ruby_file, erb_file, gemspec, rakefile].each { File.write(_1, "# selected\n") }
+
+          command = build_adapter(files: [ruby_file, erb_file, gemspec, rakefile]).command
+
+          assert_equal [ruby_file, gemspec, rakefile], command.last(3)
+        end
+      end
+
+      def test_call_returns_empty_without_spawning_for_an_erb_only_selection
+        Dir.mktmpdir do |dir|
+          erb_file = File.join(dir, "view.html.erb")
+          File.write(erb_file, "<p>view</p>\n")
+          adapter = build_adapter(files: [erb_file])
+          adapter.define_singleton_method(:capture) { |*| flunk "Reek must skip explicit ERB input" }
+
+          assert_empty adapter.call
         end
       end
 

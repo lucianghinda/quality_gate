@@ -52,13 +52,14 @@ module QualityGate
     CHECK_SCOPES = {
       "rubocop" => "selected_files",
       "reek" => "selected_files",
+      "herb" => "selected_files",
       "test_suite" => "test_suite",
       "undercover" => "git_diff",
       "simplecov" => "coverage_summary",
       "brakeman" => "project",
       "bundler_audit" => "lockfile"
     }.freeze
-    SELECTION_SUPPORTED_TOOLS = %w[rubocop reek].freeze
+    SELECTION_SUPPORTED_TOOLS = %w[rubocop reek herb].freeze
     private_constant :CHECK_SCOPES, :SELECTION_SUPPORTED_TOOLS
 
     def initialize(adapters:, config:, diagnostic_io: nil)

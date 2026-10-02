@@ -27,7 +27,9 @@ gem archive. `bin/console` opens an interactive session with the gem loaded.
 
 ## Release checklist
 
-1. Update `lib/quality_gate/version.rb` and `CHANGELOG.md` for the intended release.
+1. Update `lib/quality_gate/version.rb` and add the matching `CHANGELOG.md` entry.
+   Treat these as one release record: keep the changelog heading, gemspec version,
+   and built artifact version synchronized.
 2. Run `bin/prepare_release` and review the generated documentation and package.
    Run `bundle exec quality_gate verify` to enforce the repository coverage budgets.
    On the initial commit, Undercover cannot compare against a parent commit, so
@@ -38,9 +40,19 @@ gem archive. `bin/console` opens an interactive session with the gem loaded.
    run normal verification, including diff coverage; no extra baseline commit is required.
 3. Confirm the archive includes runtime code, configuration, licensing, and public
    documentation, with no local paths, credentials, private logs, or internal plans.
-4. Commit the reviewed release in the public repository and tag the version.
-5. Publish the reviewed artifact with `gem push pkg/quality_gate-VERSION.gem`,
-   replacing `VERSION` with the actual release version. RubyGems MFA is required.
+4. Before publishing, confirm the version matches in
+   `lib/quality_gate/version.rb`, the `CHANGELOG.md` heading, the gemspec, and
+   the built gem filename. Review the source commit and confirm it contains the
+   intended source and changelog entry. Separately confirm the gem artifact was
+   built from that reviewed commit.
+5. Commit the reviewed source, create the matching version tag, then push the
+   reviewed branch and tag to the public repository. Confirm the remote branch
+   and tag point to the reviewed commit before creating the GitHub release.
+   Publish the artifact with `gem push pkg/quality_gate-VERSION.gem`, replacing
+   `VERSION` with the actual release version; RubyGems MFA is required. Create
+   the GitHub release from the pushed tag, using the changelog entry as its notes.
+6. After publication, confirm the RubyGems release version and the GitHub
+   release title, tag, and notes match the version and changelog entry.
 
 The Rakefile also loads Bundler's gem tasks. Its `release` task can publish and
 push Git changes; use it only when those actions are intended.

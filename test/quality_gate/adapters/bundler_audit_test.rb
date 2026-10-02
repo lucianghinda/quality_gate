@@ -138,6 +138,97 @@ module QualityGate
         end
       end
 
+      def test_call_fails_closed_when_success_status_contains_vulnerability_findings
+        with_database(populated: true) do |database|
+          adapter = adapter_capturing([[fixture("advisories_report.json"), "", status(success: true)]])
+
+          findings = with_database_env(database) { adapter.call }
+
+          assert_one_tool_failure(findings)
+          assert_equal 1, adapter.captured_commands.length
+        end
+      end
+
+      def test_call_fails_closed_when_vulnerability_status_has_an_empty_report
+        with_database(populated: true) do |database|
+          adapter = adapter_capturing([[JSON.dump("results" => []), "", status(success: false)]])
+
+          findings = with_database_env(database) { adapter.call }
+
+          assert_one_tool_failure(findings)
+          assert_equal 1, adapter.captured_commands.length
+        end
+      end
+
+      def test_cached_check_fails_closed_when_its_status_contradicts_its_report
+        with_database(populated: true) do |database|
+          adapter = adapter_capturing(
+            [
+              ["update failed", "network unavailable", status(success: false)],
+              [fixture("advisories_report.json"), "", status(success: true)]
+            ]
+          )
+
+          findings = with_database_env(database) { adapter.call }
+
+          assert_one_tool_failure(findings)
+          assert_equal expected_update_and_cached_commands, adapter.captured_commands
+        end
+      end
+
+      def test_call_fails_closed_when_process_is_signaled_with_valid_json
+        with_database(populated: true) do |database|
+          adapter = adapter_capturing(
+            [[JSON.dump("results" => []), "", status(success: false, exited: false)]]
+          )
+
+          findings = with_database_env(database) { adapter.call }
+
+          assert_one_tool_failure(findings)
+          assert_equal 1, adapter.captured_commands.length
+        end
+      end
+
+      def test_call_fails_closed_when_update_exits_with_an_unsupported_status
+        with_database(populated: true) do |database|
+          adapter = adapter_capturing(
+            [[JSON.dump("results" => []), "", status(success: false, exitstatus: 2)]]
+          )
+
+          findings = with_database_env(database) { adapter.call }
+
+          assert_one_tool_failure(findings)
+          assert_equal 1, adapter.captured_commands.length
+        end
+      end
+
+      def test_cached_check_fails_closed_when_it_exits_with_an_unsupported_status
+        with_database(populated: true) do |database|
+          adapter = adapter_capturing(
+            [
+              ["update failed", "network unavailable", status(success: false)],
+              [JSON.dump("results" => []), "", status(success: false, exitstatus: 2)]
+            ]
+          )
+
+          findings = with_database_env(database) { adapter.call }
+
+          assert_one_tool_failure(findings)
+          assert_equal expected_update_and_cached_commands, adapter.captured_commands
+        end
+      end
+
+      def test_call_fails_closed_when_capture_returns_no_process_status
+        with_database(populated: true) do |database|
+          adapter = adapter_capturing([[JSON.dump("results" => []), "", nil]])
+
+          findings = with_database_env(database) { adapter.call }
+
+          assert_one_tool_failure(findings)
+          assert_equal 1, adapter.captured_commands.length
+        end
+      end
+
       def test_call_fails_closed_for_valid_empty_json_without_a_usable_database
         with_database(populated: false) do |database|
           File.write(File.join(database, "README.md"), "not an advisory database")
@@ -391,8 +482,12 @@ module QualityGate
         Process.stub(:clock_gettime, clock, &block)
       end
 
-      def status(success:)
-        Object.new.tap { _1.define_singleton_method(:success?) { success } }
+      def status(success:, exited: true, exitstatus: success ? 0 : 1)
+        Object.new.tap do |process_status|
+          process_status.define_singleton_method(:success?) { success }
+          process_status.define_singleton_method(:exited?) { exited }
+          process_status.define_singleton_method(:exitstatus) { exitstatus }
+        end
       end
 
       def fixture(name)

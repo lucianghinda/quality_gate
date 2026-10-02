@@ -9,8 +9,9 @@ module QualityGate
     # rubocop:disable Metrics/ClassLength
     class BundlerAudit < Adapter
       class InvalidReport < StandardError; end
+      class InvalidProcessStatus < StandardError; end
       class UnavailableDatabase < StandardError; end
-      private_constant :InvalidReport, :UnavailableDatabase
+      private_constant :InvalidReport, :InvalidProcessStatus, :UnavailableDatabase
 
       LOCK_FILE = "Gemfile.lock".freeze # rubocop:disable Style/RedundantFreeze
       FALLBACK_WARNING = "bundler_audit: advisory database update failed; using cached database"
@@ -43,7 +44,9 @@ module QualityGate
       def updated_findings(tool, argv, deadline, timeout_seconds)
         stderr = +""
         stdout, stderr, status = capture(argv, remaining_timeout(deadline, timeout_seconds))
+        validate_normal_completion!(status)
         findings = parse_and_validate(stdout, tool)
+        validate_status_findings!(status, findings)
         return findings if local_database?
 
         unavailable_database_failure(tool, stderr)
@@ -51,6 +54,8 @@ module QualityGate
         return [failure_finding(tool, e, stderr)] if status&.success?
 
         fallback_findings(tool, e, stderr, deadline, timeout_seconds)
+      rescue InvalidProcessStatus => e
+        [failure_finding(tool, e, stderr)]
       rescue TimeoutError, SystemCallError, IOError, ThreadError => e
         fallback_findings(tool, e, stderr, deadline, timeout_seconds)
       end
@@ -69,10 +74,12 @@ module QualityGate
 
       def cached_findings(tool, deadline, timeout_seconds)
         cached_stderr = +""
-        stdout, cached_stderr, = capture(cached_command, remaining_timeout(deadline, timeout_seconds))
+        stdout, cached_stderr, status = capture(cached_command, remaining_timeout(deadline, timeout_seconds))
+        validate_normal_completion!(status)
         findings = parse_and_validate(stdout, tool)
+        validate_status_findings!(status, findings)
         emit_fallback_warning(tool, findings, cached_stderr)
-      rescue ParseError, TimeoutError, SystemCallError, IOError, ThreadError => e
+      rescue ParseError, InvalidProcessStatus, TimeoutError, SystemCallError, IOError, ThreadError => e
         [failure_finding(tool, e, cached_stderr)]
       end
 
@@ -83,6 +90,24 @@ module QualityGate
         return remaining if remaining.positive?
 
         raise TimeoutError, "timeout after #{timeout_seconds} seconds"
+      end
+
+      def validate_normal_completion!(status)
+        return if status&.exited? && [0, 1].include?(status.exitstatus)
+
+        invalid_process_status!("process did not exit normally with status 0 or 1")
+      end
+
+      def validate_status_findings!(status, findings)
+        clean_status = status.exitstatus.zero?
+        return if clean_status == findings.empty?
+
+        expected = clean_status ? "no vulnerability findings" : "vulnerability findings"
+        invalid_process_status!("exit status #{status.exitstatus} conflicts with #{expected}")
+      end
+
+      def invalid_process_status!(reason)
+        raise InvalidProcessStatus, reason
       end
 
       def unavailable_database_failure(tool, stderr)

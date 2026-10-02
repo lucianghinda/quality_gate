@@ -54,6 +54,7 @@ module QualityGate
       create_initializers
       inject_coverage
       create_agent_integration
+      create_ci_workflow
       print_summary
     ].freeze
 

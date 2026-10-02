@@ -58,15 +58,75 @@ module QualityGate
 
         assert_empty stderr
         MANAGED_FILES.each { assert_path_exists File.join(host, _1) }
-        assert_equal expected_template("quality_gate.yml.tt"), read(host, ".quality_gate.yml")
+        settings = Config.load(dir: host)
+        assert_equal %w[bin/rails test], settings.fetch(:commands).dig(:verify, :test_suite)
         assert_equal expected_template("rubocop.yml.tt"), read(host, ".rubocop.yml")
         assert_equal expected_template("bullet.rb.tt"), read(host, "config/initializers/bullet.rb")
         assert_equal "#{STRONG_MIGRATIONS_HEADER}StrongMigrations.start_after = 20_260_829_010_101\n",
                      read(host, "config/initializers/strong_migrations.rb")
         assert_equal expected_covered_helper(original_helper), read(host, "test/test_helper.rb")
+        refute_path_exists File.join(host, ".github/workflows/quality_gate.yml")
         MANAGED_FILES.each { assert_match(/^  - #{Regexp.escape(_1)}$/, stdout) }
         assert_match(/^Written:$/, stdout)
         assert_equal "Next: bundle exec quality_gate fast", stdout.lines.last.chomp
+      end
+    end
+
+    def test_ci_workflow_is_opt_in_and_rerunning_without_ci_preserves_it
+      with_host do |host|
+        stdout, stderr = run_generator(host, "--ci")
+        workflow_path = File.join(host, ".github/workflows/quality_gate.yml")
+
+        assert_empty stderr
+        assert_path_exists workflow_path
+        content = read(host, ".github/workflows/quality_gate.yml")
+        assert_includes content, "push:"
+        assert_includes content, "pull_request:"
+        assert_includes content, "contents: read"
+        assert_includes content, "uses: actions/checkout@v7"
+        assert_includes content, "uses: ruby/setup-ruby@v1"
+        assert_includes content, "ruby-version: \"#{RUBY_VERSION}\""
+        assert_includes content, "fetch-depth: 0"
+        assert_includes content, "persist-credentials: false"
+        %w[fast verify audit].each { assert_includes content, "run: bundle exec quality_gate #{_1}" }
+        assert_includes summary_entries(stdout, "Written"), ".github/workflows/quality_gate.yml"
+
+        rerun_stdout, rerun_ci_stderr = run_generator(host, "--ci")
+
+        assert_empty rerun_ci_stderr
+        assert_equal content, File.read(workflow_path)
+        assert_includes summary_entries(rerun_stdout, "Unchanged"), ".github/workflows/quality_gate.yml"
+
+        _stdout, rerun_stderr = run_generator(host)
+
+        assert_empty rerun_stderr
+        assert_equal content, File.read(workflow_path)
+      end
+    end
+
+    def test_ci_preview_does_not_write_a_workflow
+      with_host do |host|
+        _stdout, stderr = run_generator(host, "--ci", "--pretend")
+
+        assert_empty stderr
+        refute_path_exists File.join(host, ".github/workflows/quality_gate.yml")
+      end
+    end
+
+    def test_ci_install_preserves_custom_and_unrelated_workflows
+      with_host do |host|
+        workflow_path = File.join(host, ".github/workflows/quality_gate.yml")
+        other_path = File.join(host, ".github/workflows/release.yml")
+        FileUtils.mkdir_p(File.dirname(workflow_path))
+        File.write(workflow_path, "name: Host-owned workflow\n")
+        File.write(other_path, "name: Release\n")
+
+        stdout, stderr = run_generator(host, "--ci")
+
+        assert_empty stderr
+        assert_equal "name: Host-owned workflow\n", File.read(workflow_path)
+        assert_equal "name: Release\n", File.read(other_path)
+        assert_includes summary_entries(stdout, "Needs a person"), ".github/workflows/quality_gate.yml"
       end
     end
 
@@ -84,6 +144,144 @@ module QualityGate
         ].each { refute_path_exists File.join(host, _1) }
         assert_includes summary_entries(stdout, "Skipped"),
                         "agent integration (pass --agents to install Claude hooks and contracts)"
+      end
+    end
+
+    def test_rspec_helper_and_custom_command_are_covered_and_rendered_as_yaml_argv
+      with_host(test_helper: false) do |host|
+        helper = File.join(host, "spec/support/custom_rails_helper.rb")
+        FileUtils.mkdir_p(File.dirname(helper))
+        File.binwrite(helper, "#!/usr/bin/env ruby\n# host helper\nrequire_relative \"../../config/environment\"\n")
+        command = "bundle exec rspec --format 'doc' --tag feature:test"
+
+        stdout, stderr = run_generator(
+          host,
+          "--test-helper", "spec/support/custom_rails_helper.rb",
+          "--test-command", command
+        )
+
+        assert_empty stderr
+        settings = Config.load(dir: host)
+        assert_equal %w[bundle exec rspec --format doc --tag feature:test],
+                     settings.fetch(:commands).dig(:verify, :test_suite)
+        assert_equal Config.defaults.fetch(:adapters), settings.fetch(:adapters)
+        covered = read(host, "spec/support/custom_rails_helper.rb")
+        assert_operator covered.index(InstallGenerator::MARKER_START.b), :<, covered.index("require_relative".b)
+        assert_operator covered.index("SimpleCov.start".b), :<, covered.index("require_relative".b)
+        assert_includes covered, "add_filter '/test/'"
+        assert_includes covered, "add_filter '/spec/'"
+        assert_includes summary_entries(stdout, "Written"), "spec/support/custom_rails_helper.rb"
+
+        before = tree_snapshot(host)
+        second_stdout, second_stderr = run_generator(
+          host,
+          "--test-helper", "spec/support/custom_rails_helper.rb",
+          "--test-command", command
+        )
+
+        assert_empty second_stderr
+        assert_equal before, tree_snapshot(host)
+        assert_includes summary_entries(second_stdout, "Unchanged"), "spec/support/custom_rails_helper.rb"
+      end
+    end
+
+    def test_profile_errors_are_preflighted_before_any_generator_write
+      with_host do |host|
+        spec_helper = File.join(host, "spec/rails_helper.rb")
+        FileUtils.mkdir_p(File.dirname(spec_helper))
+        File.write(spec_helper, "# RSpec helper\n")
+        before = tree_snapshot(host)
+
+        [
+          ["--test-framework", "cucumber"],
+          ["--test-helper", "../outside.rb"],
+          ["--test-framework", "minitest", "--test-command", "  "],
+          []
+        ].each do |arguments|
+          exception = nil
+          begin
+            run_generator(host, *arguments)
+          rescue StandardError => e
+            exception = e
+          end
+
+          assert_instance_of ArgumentError, exception
+          assert_equal before, tree_snapshot(host), arguments.inspect
+        end
+      end
+    end
+
+    def test_ambiguous_test_and_spec_helpers_fail_before_writing
+      with_host do |host|
+        spec_helper = File.join(host, "spec/rails_helper.rb")
+        FileUtils.mkdir_p(File.dirname(spec_helper))
+        File.write(spec_helper, "# RSpec helper\n")
+        before = tree_snapshot(host)
+
+        exception = assert_raises(ArgumentError) { run_generator(host) }
+
+        assert_includes exception.message, "test-framework"
+        assert_equal before, tree_snapshot(host)
+      end
+    end
+
+    def test_rspec_helper_symlink_components_fail_before_any_generator_write
+      with_host(test_helper: false) do |host, parent|
+        external_directory = File.join(parent, "outside-spec")
+        FileUtils.mkdir_p(external_directory)
+        external = File.join(external_directory, "rails_helper.rb")
+        File.write(external, "# external helper\n")
+        spec_directory = File.join(host, "spec")
+        FileUtils.mkdir_p(spec_directory)
+        cases = {
+          "symlinked helper directory" => -> { File.symlink(external_directory, spec_directory) },
+          "symlinked helper file" => lambda {
+            FileUtils.mkdir_p(spec_directory)
+            File.symlink(external, File.join(spec_directory, "rails_helper.rb"))
+          }
+        }
+
+        cases.each do |description, setup|
+          FileUtils.rm_rf(spec_directory)
+          setup.call
+          before_host = tree_snapshot(host)
+          before_outside = outside_snapshot(parent, host)
+          exception = nil
+
+          begin
+            run_generator(host, "--test-framework", "rspec")
+          rescue StandardError => e
+            exception = e
+          end
+
+          assert_instance_of ArgumentError, exception, description
+          assert_equal before_host, tree_snapshot(host), description
+          assert_equal before_outside, outside_snapshot(parent, host), description
+        end
+      end
+    end
+
+    def test_rspec_preview_and_customized_settings_preserve_the_host_tree
+      with_host(test_helper: false) do |host|
+        helper = File.join(host, "spec/rails_helper.rb")
+        FileUtils.mkdir_p(File.dirname(helper))
+        File.write(helper, "require_relative '../config/environment'\n")
+        before_preview = tree_snapshot(host)
+
+        run_generator(host, "--test-framework", "rspec", "--pretend")
+
+        assert_equal before_preview, tree_snapshot(host)
+
+        custom_settings = "# host-owned settings\nadapters:\n  fast:\n    - rubocop\n"
+        File.write(File.join(host, ".quality_gate.yml"), custom_settings)
+        before_custom = File.binread(File.join(host, ".quality_gate.yml"))
+
+        stdout, stderr = run_generator(host, "--test-framework", "rspec")
+
+        assert_empty stderr
+        assert_equal before_custom, File.binread(File.join(host, ".quality_gate.yml"))
+        assert_includes summary_entries(stdout, "Needs a person"), ".quality_gate.yml"
+        assert_includes summary_entries(stdout, "Written"), "spec/rails_helper.rb"
       end
     end
 

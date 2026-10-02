@@ -25,7 +25,7 @@ module QualityGate
 
       assert source.start_with?("#!/usr/bin/env ruby\n")
       refute_includes source, "<%"
-      assert_equal %w[fiddle/import json open3 time], source.scan(/^\s*require "([^"]+)"$/).flatten.sort
+      assert_equal %w[fiddle/import json open3 time yaml], source.scan(/^\s*require "([^"]+)"$/).flatten.sort
       assert_predicate RubyVM::InstructionSequence.compile(source), :itself
     end
 
@@ -66,6 +66,40 @@ module QualityGate
         assert_empty result.fetch(:stderr)
         assert_empty invocations(workspace)
         assert_log_entry(workspace, file:, outcome: "skipped")
+      end
+    end
+
+    def test_erb_file_runs_only_when_the_fast_gate_includes_herb
+      with_workspace do |workspace|
+        project = workspace.fetch(:project)
+        file = File.join(project, "app/views/users/show.html.erb")
+        FileUtils.mkdir_p(File.dirname(file))
+        File.write(file, "<p>view</p>\n")
+
+        skipped = invoke_hook(workspace, hook_input(workspace, file))
+
+        assert_predicate skipped.fetch(:status), :success?
+        assert_empty invocations(workspace)
+        assert_log_entry(workspace, file:, outcome: "skipped")
+
+        File.write(File.join(project, ".quality_gate.yml"), "adapters: []\n")
+        malformed = invoke_hook(workspace, hook_input(workspace, file))
+
+        assert_predicate malformed.fetch(:status), :success?
+        assert_empty malformed.fetch(:stdout)
+        assert_empty malformed.fetch(:stderr)
+        assert_empty invocations(workspace)
+        assert_equal %w[skipped skipped], log_outcomes(workspace)
+
+        File.write(
+          File.join(project, ".quality_gate.yml"),
+          "adapters:\n  fast:\n    - rubocop\n    - herb\n"
+        )
+        result = invoke_hook(workspace, hook_input(workspace, file))
+
+        assert_predicate result.fetch(:status), :success?
+        assert_equal [expected_invocation(workspace, file)], invocations(workspace)
+        assert_equal %w[skipped skipped clean], log_outcomes(workspace)
       end
     end
 

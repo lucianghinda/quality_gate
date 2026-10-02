@@ -2,7 +2,7 @@
 
 QualityGate gives Ruby projects one workflow for checking changes: quick feedback while editing, verification before finishing, and a separate security audit. Set up a plain Ruby project with `quality_gate init`, or a Rails application with the Rails generator.
 
-The `fast` gate runs RuboCop. `verify` runs Reek, the test suite, and Undercover in order. For `audit`, Rails defaults run Brakeman followed by bundler-audit; the Ruby setup uses bundler-audit alone.
+The `fast` gate runs RuboCop, with optional adapters such as Herb. `verify` runs Reek, the test suite, and Undercover in order. For `audit`, Rails defaults run Brakeman followed by bundler-audit; the Ruby setup uses bundler-audit alone.
 
 ## Quick start
 
@@ -74,6 +74,7 @@ rubocop      clean        project                  842ms
 | Adapter | Scope with `--files` |
 | --- | --- |
 | RuboCop, Reek | Selected files/directories, subject to the tool's exclusions |
+| Herb | Project scan, or selected ERB files/directories; unrelated files are omitted |
 | Test suite | Full configured suite |
 | Undercover | Git changes against the comparison point |
 | SimpleCov | Aggregate coverage summary |
@@ -236,7 +237,7 @@ Default timeouts:
 - `test_suite` => `120`
 - `undercover` => `120`
 
-`adapters` lists adapter names per gate. The built-in registry knows `rubocop`, `reek`, `test_suite`, `undercover`, `simplecov`, `brakeman`, and `bundler_audit`. SimpleCov is registry-known but not a default adapter: the default verify adapters are Reek, the test suite, and Undercover, in that order. Unknown adapter names still become reported tool failures instead of being ignored.
+`adapters` lists adapter names per gate. The built-in registry knows `rubocop`, `reek`, `test_suite`, `undercover`, `simplecov`, `brakeman`, `bundler_audit`, and `herb`. SimpleCov and Herb are registry-known optional adapters, not defaults. The default verify adapters are Reek, the test suite, and Undercover, in that order. Unknown adapter names still become reported tool failures instead of being ignored.
 
 ### Aggregate coverage budgets
 
@@ -255,7 +256,7 @@ coverage:
 
 `coverage.minimum_line` and `coverage.minimum_branch` are independent numeric percentage budgets in the inclusive range `0..100`. At least one is required when the `simplecov` adapter is enabled, and equality with the configured minimum passes. A valid `coverage` mapping alone is inert without `simplecov` in `adapters.verify`.
 
-After the test suite runs, the adapter reads SimpleCov's `coverage/.last_run.json` summary without rerunning tests. A missing or unusable record is a tool failure. A branch budget without usable branch data is also a tool failure and names `enable_coverage :branch` as the required SimpleCov setup. Coverage below a configured budget produces a stable error finding: `line_coverage_below_minimum` for the line budget and `branch_coverage_below_minimum` for the branch budget.
+After the test suite runs, the adapter reads SimpleCov's `coverage/.last_run.json` summary without rerunning tests. When SimpleCov is configured in `verify`, QualityGate removes only that aggregate summary before the test command. A command that produces no fresh summary cannot pass using stale coverage. A missing or unusable record is a tool failure. A branch budget without usable branch data is also a tool failure and names `enable_coverage :branch` as the required SimpleCov setup. Coverage below a configured budget produces a stable error finding: `line_coverage_below_minimum` for the line budget and `branch_coverage_below_minimum` for the branch budget.
 
 `timeouts` sets the default adapter timeout in seconds and allows per-tool entries. The shipped RuboCop timeout is 10 seconds, while the test suite and Undercover each have an explicit 120-second timeout. Brakeman and bundler-audit inherit the 120-second default.
 
@@ -400,13 +401,13 @@ Each uncovered region is a warning that names its file, first line, full line ra
 
 The security adapters deliberately ignore `--files`. Brakeman scans the whole application because its data-flow analysis crosses file boundaries. bundler-audit always checks `Gemfile.lock`, and dependency advisories use that file with line `0` rather than inventing a source location.
 
-bundler-audit tries to update its advisory database first. If that update fails and a real, usable local database exists, QualityGate scans the cached database and writes exactly one fallback warning to standard error. If no usable advisory database exists, bundler-audit returns a tool failure and exit code `2`; an unchecked dependency audit is never reported as clean.
+bundler-audit tries to update its advisory database first. A clean report must exit `0`; vulnerability findings must exit `1`. Abnormal exits or conflicting statuses and reports become tool failures. If the update fails and a real, usable local database exists, QualityGate scans the cached database and writes exactly one fallback warning to standard error. If no usable advisory database exists, bundler-audit returns a tool failure and exit code `2`; an unchecked dependency audit is never reported as clean.
 
 ### Coverage template
 
-QualityGate packages coverage templates for Rails/Minitest and plain Ruby. Both setup paths render coverage into a marked block after the Ruby source prologue and before host application code is required.
+QualityGate packages coverage templates for Rails Minitest, Rails RSpec, and plain Ruby. Both setup paths render coverage into a marked block after the Ruby source prologue and before host application code is required.
 
-The host-facing coverage templates are Undercover-only. They activate only when `ENV["COVERAGE"] == "1"`, load SimpleCov and the Undercover formatter, start branch coverage, and write `coverage/coverage.json`. The Rails template filters `test`; the Ruby template filters both `test` and `spec`. HTML output is only part of this gem's self-dogfood setup and is not configured for generated hosts.
+The host-facing coverage templates are Undercover-only. They activate only when `ENV["COVERAGE"] == "1"`, load SimpleCov and the Undercover formatter, start branch coverage, and write `coverage/coverage.json`. Generated Rails and Ruby templates filter both `test` and `spec`. HTML output is only part of this gem's self-dogfood setup and is not configured for generated hosts.
 
 ## Exit codes
 
@@ -488,13 +489,45 @@ Coverage starts only with `COVERAGE=1`, which the test-suite adapter supplies, a
 
 ## Installation
 
-QualityGate has not been published to RubyGems yet. Until it is released, install it from GitHub with Bundler:
+Install the published gem as a development and test dependency. The executable is
+used through Bundler, so the Gemfile entry does not require the library:
 
 ```ruby
-gem "quality_gate", github: "lucianghinda/quality_gate"
+group :development, :test do
+  gem "quality_gate", "~> 0.2", require: false
+end
 ```
 
-Then install for Ruby or Rails:
+The Rails/RSpec options, `--ci`, and Herb support below are unreleased. The
+published `~> 0.2` gem remains version 0.2.2; use the GitHub source after this
+change is merged to access them.
+
+Bundler installs the gem's runtime dependencies automatically. The published
+gemspec currently declares:
+
+| Runtime dependency | Version requirement |
+| --- | --- |
+| brakeman | `~> 8.0` |
+| bullet | `~> 8.2.0` |
+| bundler-audit | `~> 0.9.3` |
+| fiddle | `~> 1.1` |
+| reek | `~> 6.5` |
+| rubocop | `~> 1.90` |
+| rubocop-minitest | `~> 0.40` |
+| rubocop-performance | `~> 1.27` |
+| rubocop-rails | `~> 2.37` |
+| simplecov | `~> 1.1.1` |
+| strong_migrations | `~> 2.5.2` |
+| undercover | `~> 0.8.5` |
+
+If you need to install directly from the repository instead, Bundler also
+supports this Gemfile entry:
+
+```ruby
+gem "quality_gate", github: "lucianghinda/quality_gate", require: false
+```
+
+Then install and set up for Ruby or Rails:
 
 ```sh
 bundle install
@@ -505,13 +538,39 @@ bundle exec quality_gate init --profile ruby
 bin/rails generate quality_gate:install
 ```
 
+### Rails test setup
+
+The Rails generator detects one existing test helper. If both helpers exist,
+choose Minitest or RSpec explicitly:
+
+```sh
+bin/rails generate quality_gate:install --test-framework rspec
+```
+
+Rails defaults to `test/test_helper.rb` and `bin/rails test`. RSpec uses
+`spec/rails_helper.rb` and `bundle exec rspec`. A custom helper under `spec/`
+selects RSpec; other custom helpers select Minitest unless specified.
+
+Pass a project-relative helper and command when needed:
+
+```sh
+bin/rails generate quality_gate:install --test-helper spec/rails_helper.rb --test-command 'bundle exec rspec'
+```
+
+An explicit custom helper must exist when coverage wiring is enabled. Use
+`--skip-coverage` to omit coverage wiring. With no detected helper, Rails keeps
+Minitest, warns, and installs the remaining artifacts.
+
+The generated `.quality_gate.yml` activates the selected test command as an
+argv array. The generator renders each argument as a safe YAML scalar.
+
 The Rails generator manages these host artifacts:
 
 - `.quality_gate.yml`
 - `.rubocop.yml`
 - `config/initializers/bullet.rb`
 - `config/initializers/strong_migrations.rb`
-- a marked coverage block in `test/test_helper.rb`, before executable host code
+- a marked coverage block in the selected helper, before executable host code
 
 With `--agents`, it additionally manages:
 
@@ -525,7 +584,7 @@ Installation is idempotent. A missing file is written, while a byte-identical fi
 
 The generated Strong Migrations initializer begins with the exact provenance line `# Generated by Quality Gate.`. On its first install, QualityGate records the newest existing migration as the baseline, or records that no migration exists yet. On later runs, that provenance makes the recorded baseline take precedence, so newer migrations leave the generated initializer unchanged. An unmarked initializer is always developer-owned and therefore follows the conflict/manual policy; when it already contains `StrongMigrations.start_after`, the printed marked template preserves that established baseline instead of advancing it.
 
-Use `--skip-initializers` when the host does not use Bullet or Strong Migrations. Use `--skip-coverage` to leave the Minitest helper alone. Use `--pretend` to preview the run without changing the filesystem; pending writes are reported as skipped.
+Use `--skip-initializers` when the host does not use Bullet or Strong Migrations. Use `--skip-coverage` to leave the selected test helper alone. Use `--pretend` to preview the run without changing the filesystem; pending writes are reported as skipped.
 
 ```sh
 bin/rails generate quality_gate:install --skip-initializers
@@ -533,7 +592,66 @@ bin/rails generate quality_gate:install --skip-coverage
 bin/rails generate quality_gate:install --pretend
 ```
 
-For coverage, the generator preserves a UTF-8 BOM and shebang, then leading blank lines, ordinary comments, all Ruby and Emacs directives, and complete `=begin`/`=end` comment blocks before the marked block. It inserts coverage immediately before the first executable host code. Inserted lines use the helper's existing LF or CRLF convention.
+For coverage, the generator preserves a UTF-8 BOM and shebang, then leading blank lines, ordinary comments, all Ruby and Emacs directives, and complete `=begin`/`=end` comment blocks before the marked block. It inserts coverage immediately before the first executable host code. Inserted lines use the helper's existing LF or CRLF convention. Generated Rails and Ruby coverage blocks exclude both `test` and `spec`.
+
+### Optional GitHub Actions workflow
+
+Pass `--ci` to either setup command to create
+`.github/workflows/quality_gate.yml`:
+
+```sh
+bundle exec quality_gate init --ci
+```
+
+```sh
+bin/rails generate quality_gate:install --ci
+```
+
+The workflow is opt-in. `--pretend` previews it without writing files. An
+existing customized `.github/workflows/quality_gate.yml` is preserved and
+reported for manual integration. Later setup without `--ci` leaves an installed
+workflow alone.
+
+The generated workflow runs on pushes and pull requests. It grants `contents: read`
+and uses `actions/checkout@v7` with `fetch-depth: 0` and
+`persist-credentials: false`. It uses `ruby/setup-ruby@v1` with Bundler caching.
+Its Ruby selector uses the installing runtime's exact `RUBY_VERSION`. Separate
+direct `fast`, `verify`, and `audit` steps enforce each gate's exit status.
+
+Customize the workflow for your supported Ruby matrix, services, and environment.
+The generator cannot infer application database services or secrets.
+
+### Optional Herb checks
+
+Herb adds ERB linting to the fast gate without changing its defaults. Install the
+official CLI separately, then configure its local executable when needed:
+
+```sh
+npm install --save-dev @herb-tools/linter@0.11.0
+```
+
+```yaml
+adapters:
+  fast:
+    - rubocop
+    - herb
+commands:
+  fast:
+    herb:
+      - node_modules/.bin/herb-lint
+```
+
+Generated CI installs Ruby and Bundler dependencies only. If Herb is enabled,
+customize the workflow to set up Node and install locked npm dependencies before
+the fast step.
+
+QualityGate appends JSON output flags and eligible selected paths to the command.
+The default launcher is `herb-lint`. Bundler does not add npm's local binaries
+to `PATH`. With no selected paths, Herb scans the project. With
+selected paths, it receives ERB files and directories; unrelated files are
+omitted. Herb applies its own `.herb.yml` exclusions. The generated fast hook
+keeps Ruby checks unchanged. It checks ERB only when Herb is enabled. Hook
+feedback may fail open; CI enforces direct gate exit codes.
 
 ### Claude Code agent hooks
 
@@ -543,7 +661,7 @@ Plain Ruby projects use `bundle exec quality_gate init --profile ruby --agents` 
 
 For agent integration, run `bin/rails generate quality_gate:install --agents`. The generator writes `.claude/hooks/quality_gate_fast.rb` and `.claude/hooks/quality_gate_verify_stop.rb`, installs the exact Claude Code `PostToolUse` and `Stop` entries in `.claude/settings.json`, and manages one marker-owned Quality Gate contract block inside `CLAUDE.md` and `AGENTS.md`. The Stop command has a 300-second Claude Code timeout. The marker-owned contract sections are narrower than the wholly owned files: a single stale Quality Gate block is replaced in place, the surrounding bytes are preserved, and any unmatched or multiple marker cases fall back to manual installation. If a hook file is byte-identical but has lost its executable mode, reinstalling repairs the mode without rewriting the file. After `bundle install` or a gem upgrade, rerun `bin/rails generate quality_gate:install --agents` to reinstall the generated hooks and contract files.
 
-The `PostToolUse` hook runs file-scoped `quality_gate fast` after Ruby edits. Findings exit 2 and return the gate's JSON report to Claude as feedback. If an attempted fast run is unavailable, the first attempt in that unavailable streak exits 2 with one stderr line naming `bundle exec quality_gate fast` and `log/quality_gate_hooks.jsonl`; the already-applied edit stands and is not rolled back. Repeated unavailable attempts exit 0 silently. Non-Ruby paths and deleted files remain cheap skips.
+The `PostToolUse` hook runs file-scoped `quality_gate fast` after Ruby edits. It also checks ERB edits when Herb is configured in the fast gate. Findings exit 2 and return the gate's JSON report to Claude as feedback. If an attempted fast run is unavailable, the first attempt in that unavailable streak exits 2 with one stderr line naming `bundle exec quality_gate fast` and `log/quality_gate_hooks.jsonl`; the already-applied edit stands and is not rolled back. Repeated unavailable attempts exit 0 silently. Other non-Ruby paths and deleted files remain cheap skips.
 
 The `Stop` hook checks for Ruby working-tree edits and automatically runs `quality_gate verify` before Claude finishes. With no Ruby edits it skips without starting the verifier. A clean result from the same `session_id` is debounced when no Ruby edit was logged at or after that result. Findings exit 2 with the machine-readable JSON report only after the matching `verify_blocked` record is safely appended, so Claude receives the feedback and continues working. If prior hook history cannot be read safely or that record cannot be written, the hook suppresses the feedback and fails open so the retry cap cannot deadlock. Invalid verifier output, a tool failure, a verifier timeout, or a command exception also fails open as unavailable. After three consecutive blocked finish attempts in one session, the next attempt is capped and exits 0.
 

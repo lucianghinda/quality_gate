@@ -1,0 +1,28 @@
+name: Quality Gate
+# Customize the Ruby version, matrix, services, and environment for your application.
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "<%= RUBY_VERSION %>"
+          bundler-cache: true
+      - name: Fast checks
+        run: bundle exec quality_gate fast
+      - name: Verify checks
+        run: bundle exec quality_gate verify
+      - name: Security audit
+        run: bundle exec quality_gate audit

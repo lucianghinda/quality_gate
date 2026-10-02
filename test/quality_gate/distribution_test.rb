@@ -48,9 +48,11 @@ module QualityGate
     lib/generators/quality_gate/install/templates/quality_gate.yml.tt
     lib/generators/quality_gate/install/templates/quality_gate_fast.rb.tt
     lib/generators/quality_gate/install/templates/quality_gate_verify_stop.rb.tt
+    lib/generators/quality_gate/install/templates/rails_quality_gate.yml.tt
     lib/generators/quality_gate/install/templates/rubocop.yml.tt
     lib/generators/quality_gate/install/templates/ruby_agents_section.md.tt
     lib/generators/quality_gate/install/templates/ruby_quality_gate.yml.tt
+    lib/generators/quality_gate/install/templates/quality_gate_workflow.yml.tt
     lib/generators/quality_gate/install/templates/ruby_rubocop.yml.tt
     lib/generators/quality_gate/install/templates/ruby_simplecov.rb.tt
     lib/generators/quality_gate/install/templates/simplecov.rb.tt
@@ -68,6 +70,7 @@ module QualityGate
     lib/rubocop/cop/quality_gate/broadcast_in_controller.rb
     lib/rubocop/cop/quality_gate/controller_instance_variables.rb
     lib/quality_gate/adapters/reek.rb
+    lib/quality_gate/adapters/herb.rb
     lib/quality_gate/adapters/rubocop.rb
     lib/quality_gate/adapters/brakeman.rb
     lib/quality_gate/adapters/bundler_audit.rb
@@ -300,6 +303,14 @@ module QualityGate
       assert_includes signature, "def name: () -> String"
     end
 
+    def test_rbs_describes_the_herb_adapter
+      signature = File.read(SIGNATURE)
+
+      assert_includes signature, "class Herb < Adapter"
+      assert_includes signature, "def command: () -> Array[String]"
+      assert_includes signature, "def parse: (String stdout) -> Array[Finding]"
+    end
+
     def test_rbs_describes_the_unit_six_railtie_and_install_generator_surface
       signature = File.read(SIGNATURE)
 
@@ -314,6 +325,7 @@ module QualityGate
         create_initializers
         inject_coverage
         create_agent_integration
+        create_ci_workflow
         print_summary
       ]
       install_methods.each do |method|
