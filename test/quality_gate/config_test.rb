@@ -57,7 +57,10 @@ module QualityGate
         config = Config.load(dir: dir)
 
         assert_equal(
-          { fast: ["rubocop"], verify: %w[reek test_suite undercover], audit: %w[brakeman bundler_audit] },
+          {
+            fast: ["rubocop"], verify: %w[reek test_suite undercover], audit: %w[brakeman bundler_audit],
+            deep: ["rubycritic"]
+          },
           config.fetch(:adapters)
         )
         assert_equal(
@@ -65,6 +68,7 @@ module QualityGate
           config.fetch(:timeouts)
         )
         assert_equal %w[bin/rails test], config.fetch(:commands).fetch(:verify).fetch(:test_suite)
+        assert_empty config.fetch(:commands).fetch(:deep)
         assert_nil config.fetch(:compare_point)
         assert_nil config.fetch(:rubocop_config)
         assert_nil config.fetch(:coverage)
@@ -249,7 +253,7 @@ module QualityGate
     end
 
     def test_adapters_reject_unknown_layer_keys
-      assert_invalid_config("adapters:\n  fasst: []\n", "adapters keys must be fast, verify, or audit")
+      assert_invalid_config("adapters:\n  fasst: []\n", "adapters keys must be fast, verify, audit, or deep")
     end
 
     def test_adapters_layer_values_must_be_arrays
@@ -344,7 +348,7 @@ module QualityGate
 
     def test_commands_must_be_a_mapping_with_known_layers
       assert_invalid_config("commands: verify\n", "commands must be a mapping")
-      assert_invalid_config("commands:\n  verfy: {}\n", "commands keys must be fast, verify, or audit")
+      assert_invalid_config("commands:\n  verfy: {}\n", "commands keys must be fast, verify, audit, or deep")
     end
 
     def test_command_layers_must_be_mappings
@@ -358,6 +362,32 @@ module QualityGate
       invalid_entries = "entries must be non-empty strings"
       assert_invalid_config("commands:\n  verify:\n    test_suite: [bin/rails, \"\"]\n", invalid_entries)
       assert_invalid_config("commands:\n  verify:\n    test_suite: [bin/rails, 1]\n", invalid_entries)
+    end
+
+    def test_deep_adapters_and_commands_are_configurable
+      config = load_config(<<~YAML)
+        adapters:
+          deep:
+            - rubycritic
+            - custom_critic
+        commands:
+          deep:
+            rubycritic:
+              - ruby
+              - /tmp/rubycritic.rb
+      YAML
+
+      assert_equal %w[rubycritic custom_critic], config.fetch(:adapters).fetch(:deep)
+      assert_equal %w[ruby /tmp/rubycritic.rb], config.fetch(:commands).fetch(:deep).fetch(:rubycritic)
+      assert_empty config.unknown_keys
+    end
+
+    def test_deep_adapter_and_command_values_use_existing_validation
+      assert_invalid_config("adapters:\n  deep: rubycritic\n", "adapters.deep must be an array")
+      assert_invalid_config(
+        "commands:\n  deep:\n    rubycritic: []\n",
+        "commands.deep.rubycritic must be an argv array"
+      )
     end
 
     def test_excessive_yaml_nesting_is_reported_as_config_error

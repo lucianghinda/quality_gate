@@ -57,7 +57,8 @@ module QualityGate
       "undercover" => "git_diff",
       "simplecov" => "coverage_summary",
       "brakeman" => "project",
-      "bundler_audit" => "lockfile"
+      "bundler_audit" => "lockfile",
+      "rubycritic" => "project"
     }.freeze
     SELECTION_SUPPORTED_TOOLS = %w[rubocop reek herb].freeze
     private_constant :CHECK_SCOPES, :SELECTION_SUPPORTED_TOOLS

@@ -22,12 +22,14 @@ module QualityGate
       adapters: {
         fast: ["rubocop"].freeze,
         verify: %w[reek test_suite undercover].map!(&:freeze).freeze,
-        audit: %w[brakeman bundler_audit].map!(&:freeze).freeze
+        audit: %w[brakeman bundler_audit].map!(&:freeze).freeze,
+        deep: ["rubycritic"].freeze
       }.freeze,
       commands: {
         fast: {}.freeze,
         verify: { test_suite: %w[bin/rails test].map!(&:freeze).freeze }.freeze,
-        audit: {}.freeze
+        audit: {}.freeze,
+        deep: {}.freeze
       }.freeze,
       timeouts: { default: 120, rubocop: 10, test_suite: 120, undercover: 120 }.freeze,
       coverage: nil,
@@ -35,7 +37,7 @@ module QualityGate
       rubocop_config: nil
     }.freeze
     FORMATS = %w[text json markdown].map!(&:freeze).freeze
-    ADAPTER_LAYERS = %i[fast verify audit].freeze
+    ADAPTER_LAYERS = %i[fast verify audit deep].freeze
     COVERAGE_KEYS = %i[minimum_line minimum_branch].freeze
     private_constant :ADAPTER_LAYERS, :COVERAGE_KEYS
 
@@ -121,7 +123,7 @@ module QualityGate
 
         invalid_keys = adapters.keys - ADAPTER_LAYERS
         if invalid_keys.any?
-          fail ConfigError.new(path: path, cause_message: "adapters keys must be fast, verify, or audit") # rubocop:disable Style/SignalException
+          fail ConfigError.new(path: path, cause_message: "adapters keys must be fast, verify, audit, or deep") # rubocop:disable Style/SignalException
         end
 
         adapters.each do |layer, adapter_names|
@@ -160,7 +162,7 @@ module QualityGate
 
         return if (value.keys - ADAPTER_LAYERS).empty?
 
-        cause = "#{setting} keys must be fast, verify, or audit"
+        cause = "#{setting} keys must be fast, verify, audit, or deep"
         fail ConfigError.new(path: path, cause_message: cause) # rubocop:disable Style/SignalException
       end
 
