@@ -4,7 +4,9 @@ QualityGate gives Ruby projects one workflow for checking changes: quick feedbac
 
 The `fast` gate runs RuboCop, with optional adapters such as Herb. `verify` runs Reek, the test suite, and Undercover in order. For `audit`, Rails defaults run Brakeman followed by bundler-audit; the Ruby setup uses bundler-audit alone.
 
-The optional `deep` gate is under development and is not part of the published 0.2.3 release. Its default adapter is RubyCritic; Debride can be enabled explicitly for project-wide potentially unused method candidates. The gate runs only when requested, and `--files` does not narrow either analyzer.
+This source prepares the 0.3.0 release candidate; it has not been published to RubyGems yet. The latest RubyGems release is 0.2.2; the latest GitHub release is v0.2.3.
+
+The optional `deep` gate is introduced in 0.3.0. Its default adapter is RubyCritic; Debride can be enabled explicitly for project-wide potentially unused method candidates. The gate runs only when requested, and `--files` does not narrow either analyzer.
 
 ## Quick start
 
@@ -41,9 +43,9 @@ bundle exec quality_gate verify
 bundle exec quality_gate audit
 ```
 
-### Deep analysis (unreleased)
+### Deep analysis (introduced in 0.3.0)
 
-The upcoming `deep` gate is invoked explicitly and supports the usual output formats:
+The `deep` gate is invoked explicitly and supports the usual output formats:
 
 ```sh
 bundle exec quality_gate deep --format text
@@ -51,7 +53,7 @@ bundle exec quality_gate deep --format json
 bundle exec quality_gate deep --format markdown
 ```
 
-RubyCritic is optional and is not installed by QualityGate. Add it to the host project's Gemfile (for example, `gem "rubycritic", "~> 5", require: false`) and run `bundle install` before invoking the gate. The unreleased default is `deep: [rubycritic]`; `commands.deep.rubycritic` overrides the launcher argv prefix, with the adapter supplying RubyCritic's analysis flags and managing its output directory. Its timeout can be set with `timeouts.rubycritic` (otherwise the existing 120-second default applies).
+RubyCritic is optional and is not installed by QualityGate. Add it to the host project's Gemfile (for example, `gem "rubycritic", "~> 5", require: false`) and run `bundle install` before invoking the gate. The default is `deep: [rubycritic]`; `commands.deep.rubycritic` overrides the launcher argv prefix, with the adapter supplying RubyCritic's analysis flags and managing its output directory. Its timeout can be set with `timeouts.rubycritic` (otherwise the existing 120-second default applies).
 
 ```yaml
 adapters:
@@ -126,7 +128,7 @@ undercover   clean        git_diff                619ms
 
 Run a read-only setup preflight with `bundle exec quality_gate doctor`. It prints text by default; `--format json` emits a machine-readable report, regardless of the gate format in the project configuration. `--help` works without loading that configuration. Doctor rejects positional arguments, `--files`, Markdown output, and unknown options.
 
-Doctor is not included in a released gem yet; after this change is merged, use the [GitHub source](https://github.com/lucianghinda/quality_gate) until the next gem release.
+Doctor is introduced in 0.3.0.
 
 Doctor checks configuration, runtime and bundle context, whether supported launch paths are available, Undercover's comparison point, required coverage evidence, and recent optional hook history. It does not execute analyzers, test suites, or application boot code; install or repair anything; fetch from Git; or establish that the application is clean or works. A ready launcher check means only that the inspected executable or explicit script was found. Custom wrappers and nested bare commands that cannot be resolved safely remain `unchecked`.
 
@@ -309,7 +311,7 @@ Default adapters when no project configuration overrides them (the Rails setup u
 - `fast` => `rubocop`
 - `verify` => `reek`, then `test_suite`, then `undercover`
 - `audit` => `brakeman`, then `bundler_audit`
-- `deep` => `rubycritic` (unreleased; manual invocation only)
+- `deep` => `rubycritic` (introduced in 0.3.0; manual invocation only)
 
 Default timeouts:
 
@@ -318,7 +320,7 @@ Default timeouts:
 - `test_suite` => `120`
 - `undercover` => `120`
 
-`adapters` lists adapter names per gate. The built-in registry knows `rubocop`, `reek`, `test_suite`, `undercover`, `simplecov`, `brakeman`, `bundler_audit`, `herb`, `rubycritic`, and `debride`. SimpleCov, Herb, and Debride are registry-known optional adapters, not defaults. RubyCritic is the unreleased `deep` default; Debride can be selected alongside it or by itself. The default verify adapters are Reek, the test suite, and Undercover, in that order. Unknown adapter names still become reported tool failures instead of being ignored.
+`adapters` lists adapter names per gate. The built-in registry knows `rubocop`, `reek`, `test_suite`, `undercover`, `simplecov`, `brakeman`, `bundler_audit`, `herb`, `rubycritic`, and `debride`. SimpleCov, Herb, and Debride are registry-known optional adapters, not defaults. RubyCritic is the `deep` default; Debride can be selected alongside it or by itself. The default verify adapters are Reek, the test suite, and Undercover, in that order. Unknown adapter names still become reported tool failures instead of being ignored.
 
 ### Aggregate coverage budgets
 
@@ -579,9 +581,8 @@ group :development, :test do
 end
 ```
 
-The Rails/RSpec options, `--ci`, and Herb support below are unreleased. The
-published `~> 0.2` gem remains version 0.2.2; use the GitHub source after this
-change is merged to access them.
+The Rails/RSpec options, `--ci`, and Herb support were introduced in the v0.2.3 GitHub release and are included in this candidate. They are not in the current RubyGems release, 0.2.2.
+The `~> 0.2` version constraint will accept 0.3.x once published.
 
 Bundler installs the gem's runtime dependencies automatically. The published
 gemspec currently declares:
