@@ -310,7 +310,7 @@ module QualityGate
             Without --files, the configured files are used. With --files, the command-line paths replace them.
             RuboCop and Reek scan selected paths. The test suite runs in full; Undercover checks the Git diff.
             Brakeman scans the application and bundler-audit scans the lockfile.
-            RubyCritic scans the whole project; --files does not narrow its scan.
+            RubyCritic and Debride scan the whole project; --files does not narrow their scans.
 
           Examples:
             quality_gate fast
@@ -363,19 +363,21 @@ module QualityGate
           Usage: quality_gate deep [options]
 
           Run the deep gate using these default tools: #{tools}.
-          RubyCritic is optional and must be installed separately.
+          RubyCritic is the default analyzer, optional and installed separately.
+          Enable optional Debride with adapters.deep: [debride]; install it separately.
 
           Options:
-            --files PATH [PATH ...]  Validate paths for this run; RubyCritic scans the whole project
+            --files PATH [PATH ...]  Validate paths for this run; deep analyzers scan the whole project
             --format FORMAT         Choose text, json, or markdown output (also accepts --format=FORMAT)
             -h, --help              Show this help
 
           Scope:
-            RubyCritic scans the whole project. --files paths are validated but do not narrow its scan.
+            Deep analyzers scan the whole project. --files paths are validated but do not narrow their scans.
 
           Examples:
             quality_gate deep
             quality_gate deep --format json
+            # Configure adapters.deep: [debride] to run Debride
 
           Exit status:
             0  Checks completed cleanly
@@ -476,7 +478,8 @@ module QualityGate
           "undercover" => QualityGate::Adapters::Undercover,
           "brakeman" => QualityGate::Adapters::Brakeman,
           "bundler_audit" => QualityGate::Adapters::BundlerAudit,
-          "rubycritic" => QualityGate::Adapters::RubyCritic
+          "rubycritic" => QualityGate::Adapters::RubyCritic,
+          "debride" => QualityGate::Adapters::Debride
         }.freeze
       end
 

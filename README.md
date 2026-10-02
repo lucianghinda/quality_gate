@@ -4,7 +4,7 @@ QualityGate gives Ruby projects one workflow for checking changes: quick feedbac
 
 The `fast` gate runs RuboCop, with optional adapters such as Herb. `verify` runs Reek, the test suite, and Undercover in order. For `audit`, Rails defaults run Brakeman followed by bundler-audit; the Ruby setup uses bundler-audit alone.
 
-An optional `deep` gate using RubyCritic is under development and is not part of the published 0.2.3 release. It runs only when explicitly requested; it is a project-wide design analysis, regardless of `--files`.
+The optional `deep` gate is under development and is not part of the published 0.2.3 release. Its default adapter is RubyCritic; Debride can be enabled explicitly for project-wide potentially unused method candidates. The gate runs only when requested, and `--files` does not narrow either analyzer.
 
 ## Quick start
 
@@ -51,7 +51,7 @@ bundle exec quality_gate deep --format json
 bundle exec quality_gate deep --format markdown
 ```
 
-RubyCritic is optional and is not installed by QualityGate. Add it to the host project's Gemfile (for example, `gem "rubycritic", "~> 5", require: false`) and run `bundle install` before invoking the gate. The upcoming default is `deep: [rubycritic]`; `commands.deep.rubycritic` overrides the launcher argv prefix, with the adapter supplying RubyCritic's analysis flags and managing its output directory. Its timeout can be set with `timeouts.rubycritic` (otherwise the existing 120-second default applies).
+RubyCritic is optional and is not installed by QualityGate. Add it to the host project's Gemfile (for example, `gem "rubycritic", "~> 5", require: false`) and run `bundle install` before invoking the gate. The unreleased default is `deep: [rubycritic]`; `commands.deep.rubycritic` overrides the launcher argv prefix, with the adapter supplying RubyCritic's analysis flags and managing its output directory. Its timeout can be set with `timeouts.rubycritic` (otherwise the existing 120-second default applies).
 
 ```yaml
 adapters:
@@ -68,6 +68,42 @@ timeouts:
 ```
 
 RubyCritic analyzes the project as a whole; `--files` does not narrow this gate. Its findings complement tests and security checks and may overlap Reek. QualityGate does not add a score budget or minimum; RubyCritic owns its score. A completed analysis with no smells exits `0`, reported smells exit `1`, and missing input, configuration, or tool failures exit `2`. A report containing no analyzed Ruby modules is a tool failure, not a clean result. The JSON report is captured through a temporary file that QualityGate removes on success or failure; the adapter does not request HTML output or project-local report artifacts.
+
+#### Debride: potentially unused methods
+
+Debride is an optional host-project dependency; QualityGate does not install it. Add it to the project's Gemfile and install the bundle before enabling the adapter:
+
+```ruby
+gem "debride", "~> 1.15", require: false
+```
+
+Select Debride alone or alongside RubyCritic in `.quality_gate.yml`:
+
+```yaml
+adapters:
+  deep:
+    - debride
+timeouts:
+  debride: 120
+```
+
+To run both analyzers, add `- rubycritic` before `- debride`. The default remains `deep: [rubycritic]`. The Debride command defaults to the `debride` executable; `commands.deep.debride` overrides its launcher argv prefix, and QualityGate appends `--json` and `.`. For Rails conventions with Bundler, for example:
+
+```yaml
+commands:
+  deep:
+    debride:
+      - bundle
+      - exec
+      - debride
+      - --rails
+```
+
+QualityGate adds `--json` and `.` after this prefix. It does not select framework options automatically. Leave `--verbose` off: Debride stderr diagnostics, including launcher chatter, make the result a tool failure. `timeouts.debride` uses the existing 120-second default when omitted.
+
+Debride examines the whole project even when `--files` is supplied. Its candidates can be false positives when code is reached through dynamic dispatch, external APIs, metaprogramming, or Rails callbacks. Treat them as review leads: QualityGate does not delete code or prove that a method is dead. Debride does not report how many Ruby files it analyzed, so an empty report can be clean while providing no guarantee that files were present or fully understood.
+
+Debride returns `0` for a clean report or candidates; QualityGate maps these to gate exits `0` and `1`, respectively. Missing tools, timeouts, malformed output, and any stderr diagnostics are tool failures and make the gate exit `2`. This strict check matters because Debride can skip invalid Ruby files, print a warning, and still exit successfully. Keep custom launchers quiet and emit only Debride's JSON on stdout. Like the other adapters, the result uses the standard text, JSON, and Markdown reporters.
 
 This gate is a manual command only. It does not add generated hooks or workflow steps.
 
@@ -273,6 +309,7 @@ Default adapters when no project configuration overrides them (the Rails setup u
 - `fast` => `rubocop`
 - `verify` => `reek`, then `test_suite`, then `undercover`
 - `audit` => `brakeman`, then `bundler_audit`
+- `deep` => `rubycritic` (unreleased; manual invocation only)
 
 Default timeouts:
 
@@ -281,7 +318,7 @@ Default timeouts:
 - `test_suite` => `120`
 - `undercover` => `120`
 
-`adapters` lists adapter names per gate. The built-in registry knows `rubocop`, `reek`, `test_suite`, `undercover`, `simplecov`, `brakeman`, `bundler_audit`, and `herb`. SimpleCov and Herb are registry-known optional adapters, not defaults. The default verify adapters are Reek, the test suite, and Undercover, in that order. Unknown adapter names still become reported tool failures instead of being ignored.
+`adapters` lists adapter names per gate. The built-in registry knows `rubocop`, `reek`, `test_suite`, `undercover`, `simplecov`, `brakeman`, `bundler_audit`, `herb`, `rubycritic`, and `debride`. SimpleCov, Herb, and Debride are registry-known optional adapters, not defaults. RubyCritic is the unreleased `deep` default; Debride can be selected alongside it or by itself. The default verify adapters are Reek, the test suite, and Undercover, in that order. Unknown adapter names still become reported tool failures instead of being ignored.
 
 ### Aggregate coverage budgets
 
@@ -343,9 +380,9 @@ can write a log record. Check `log/quality_gate_hooks.jsonl` and run
 
 ### Configuration validation
 
-`adapters` must be a mapping whose only permitted keys are `fast`, `verify`, and `audit`, and each layer value must be an array of non-empty strings. The mapping may specify any subset of those gates; unspecified gates keep the shipped defaults. A misspelled layer key such as `fasst` is rejected as a configuration error instead of silently falling back to a clean run.
+`adapters` must be a mapping whose only permitted keys are `fast`, `verify`, `audit`, and `deep`, and each layer value must be an array of non-empty strings. The mapping may specify any subset of those gates; unspecified gates keep the shipped defaults. A misspelled layer key such as `fasst` is rejected as a configuration error instead of silently falling back to a clean run.
 
-`commands` follows the same three gate layers. Every command is an argv array of non-empty strings, never a shell command string. `commands.verify.test_suite` defaults to `["bin/rails", "test"]`.
+`commands` follows the same four gate layers. Every command is an argv array of non-empty strings, never a shell command string. `commands.verify.test_suite` defaults to `["bin/rails", "test"]`; deep analyzer commands default to their executable names.
 
 `compare_point` may be `nil` or a non-empty String. Set it to a Git ref or commit when CI has too little history to find a common ancestor automatically.
 

@@ -58,7 +58,8 @@ module QualityGate
       "simplecov" => "coverage_summary",
       "brakeman" => "project",
       "bundler_audit" => "lockfile",
-      "rubycritic" => "project"
+      "rubycritic" => "project",
+      "debride" => "project"
     }.freeze
     SELECTION_SUPPORTED_TOOLS = %w[rubocop reek herb].freeze
     private_constant :CHECK_SCOPES, :SELECTION_SUPPORTED_TOOLS
@@ -74,7 +75,7 @@ module QualityGate
       checks = []
 
       adapters.each do |adapter|
-        tool = adapter_name(adapter)
+        tool = adapter.name.to_s
         write_progress(tool, scope_for(tool))
         started_at = monotonic_time
         adapter_findings = adapter.call
@@ -89,22 +90,14 @@ module QualityGate
 
     attr_reader :adapters, :config, :diagnostic_io
 
-    def adapter_name(adapter)
-      adapter.name.to_s
-    end
-
     def check_for(tool, findings, duration_ms)
       {
         tool: tool,
         status: status_for(findings),
         scope: scope_for(tool),
-        requested_files: selection_supported?(tool) ? requested_files : [],
+        requested_files: SELECTION_SUPPORTED_TOOLS.include?(tool) ? requested_files : [],
         duration_ms: duration_ms
       }
-    end
-
-    def selection_supported?(tool)
-      SELECTION_SUPPORTED_TOOLS.include?(tool)
     end
 
     def scope_for(tool)
