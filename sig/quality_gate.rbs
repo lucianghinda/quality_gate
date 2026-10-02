@@ -205,6 +205,27 @@ module QualityGate
     def self.run: (Array[String] argv, ?stdout: _Output, ?stderr: _Output, ?dir: String) -> (0 | 1 | 2)
   end
 
+  class Doctor
+    def initialize: (dir: String, registry: Hash[String, untyped]) -> void
+    def call: () -> DoctorReport
+  end
+
+  class DoctorReport
+    STATUSES: Array[String]
+
+    attr_reader checks: Array[Hash[String, String]]
+    attr_reader summary: Hash[String, Integer]
+
+    def self.check: (id: String, status: String, message: String) -> Hash[String, String]
+    def initialize: (checks: Array[Hash[String, String]]) -> void
+    def exit_code: () -> (0 | 1 | 2)
+  end
+
+  class DoctorCommand
+    def initialize: (dir: String, registry: Hash[String, untyped]) -> void
+    def run: (Array[String] arguments, stdout: _Output, stderr: _Output) -> (0 | 1 | 2)
+  end
+
   class InitCommand
     def self.run: (Array[String] arguments, stdout: _Output, stderr: _Output, dir: String) -> (0 | 1 | 2)
   end
@@ -223,6 +244,11 @@ module QualityGate
     class Markdown
       def initialize: (io: _Output) -> void
       def call: (Runner::Result result) -> nil
+    end
+
+    class Doctor
+      def initialize: (io: _Output) -> void
+      def call: (DoctorReport report, format: String) -> nil
     end
   end
 

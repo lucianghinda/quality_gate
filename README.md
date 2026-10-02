@@ -88,6 +88,18 @@ undercover   clean        git_diff                619ms
 
 (Durations above are illustrative, not measured figures.) These tool lines make a clean run visible: you see every tool that ran, not just an absence of findings.
 
+Run a read-only setup preflight with `bundle exec quality_gate doctor`. It prints text by default; `--format json` emits a machine-readable report, regardless of the gate format in the project configuration. `--help` works without loading that configuration. Doctor rejects positional arguments, `--files`, Markdown output, and unknown options.
+
+Doctor is not included in a released gem yet; after this change is merged, use the [GitHub source](https://github.com/lucianghinda/quality_gate) until the next gem release.
+
+Doctor checks configuration, runtime and bundle context, whether supported launch paths are available, Undercover's comparison point, required coverage evidence, and recent optional hook history. It does not execute analyzers, test suites, or application boot code; install or repair anything; fetch from Git; or establish that the application is clean or works. A ready launcher check means only that the inspected executable or explicit script was found. Custom wrappers and nested bare commands that cannot be resolved safely remain `unchecked`.
+
+The report has scope `preflight`, checks with `id`, `status`, and `message`, and summary counts for every status. Each message describes what was observed and gives a next step when needed. Statuses are `ready`, `warning`, `blocked`, `unchecked`, and `not_applicable`. Exit `0` means applicable preflight checks are ready; `1` means a warning or unchecked observation remains; `2` means a blocker, invalid input, or report failure. `not_applicable` is neutral. These results describe preflight observations, not gate findings or proof of application health.
+
+Coverage artifacts are inspected only when an enabled adapter needs them. Before the first suite run, missing coverage is `unchecked`; run `bundle exec quality_gate verify` to create the evidence. Doctor reads at most 1 MiB from each artifact and does not check freshness, coverage wiring, or budget compliance. Hook history is advisory: absent optional hooks are `not_applicable`; installed hooks without valid history are `unchecked`; and valid history does not verify that hooks are currently installed. The Git comparison probe has a shared five-second budget and never fetches history.
+
+If Bundler prevents the `quality_gate` command from starting, Doctor cannot run. Check Ruby and Bundler outside QualityGate with `ruby -v`, `command -v ruby`, `bundle --version`, and `bundle check`; these are manual troubleshooting commands, not Doctor checks.
+
 Use `--files` to select paths for RuboCop and Reek; the first path follows the option and further paths follow it as separate arguments:
 
 ```sh

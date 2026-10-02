@@ -6,7 +6,7 @@ module QualityGate
   # Parses command-line input and coordinates configured quality gates.
   # rubocop:disable Metrics/ClassLength
   class CLI
-    SUBCOMMANDS = %w[fast verify audit deep version init].map!(&:freeze).freeze
+    SUBCOMMANDS = %w[fast verify audit deep version init doctor].map!(&:freeze).freeze
     GATE_SUBCOMMANDS = %w[fast verify audit deep].map!(&:freeze).freeze
     GATE_TOOLS = {
       "fast" => %w[rubocop].freeze,
@@ -62,6 +62,7 @@ module QualityGate
         end
         return print_version(stdout, stderr) if subcommand == "version" && arguments.empty?
         return run_init(arguments, stdout: stdout, stderr: stderr, dir: dir) if subcommand == "init"
+        return run_doctor(arguments, stdout: stdout, stderr: stderr, dir: dir) if subcommand == "doctor"
 
         nil
       end
@@ -70,6 +71,10 @@ module QualityGate
         require_relative "init_command" unless defined?(QualityGate::InitCommand)
 
         InitCommand.run(arguments, stdout: stdout, stderr: stderr, dir: dir)
+      end
+
+      def run_doctor(arguments, stdout:, stderr:, dir:)
+        DoctorCommand.new(dir:, registry: registry).run(arguments, stdout:, stderr:)
       end
 
       def execute_command(subcommand, arguments, stdout:, stderr:, dir:, format:)
@@ -283,7 +288,7 @@ module QualityGate
         return gate_help_text(gate) if gate
 
         <<~TEXT
-          Usage: quality_gate <fast|verify|audit|deep|version|init> [options]
+          Usage: quality_gate <fast|verify|audit|deep|version|init|doctor> [options]
 
           Run one Quality Gate check for the current project.
 
@@ -294,6 +299,7 @@ module QualityGate
             deep      RubyCritic (complexity and duplication checks; optional)
             version   Print the Quality Gate version
             init      Install a plain Ruby project configuration
+            doctor    Inspect bounded preflight readiness without running gates
 
           Options:
             --files PATH [PATH ...]  Replace configured paths for this run; files and directories are allowed
@@ -311,6 +317,7 @@ module QualityGate
             quality_gate fast --files app/models/user.rb test/models
             quality_gate verify --format json
             quality_gate verify --format markdown
+            quality_gate doctor --format json
             quality_gate deep --format json
 
           Exit status:

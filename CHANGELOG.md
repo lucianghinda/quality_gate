@@ -1,5 +1,6 @@
-## Unreleased
+## [Unreleased]
 
+- Add `quality_gate doctor` for read-only setup preflight checks with text or JSON output.
 - Add an optional, explicitly invoked RubyCritic-backed `deep` gate for project-wide design analysis. RubyCritic remains a host-project dependency; the gate does not add a score budget or generated hooks/workflows.
 
 ## [0.2.3] - 2026-10-02
