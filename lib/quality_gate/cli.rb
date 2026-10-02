@@ -6,12 +6,13 @@ module QualityGate
   # Parses command-line input and coordinates configured quality gates.
   # rubocop:disable Metrics/ClassLength
   class CLI
-    SUBCOMMANDS = %w[fast verify audit version init doctor].map!(&:freeze).freeze
-    GATE_SUBCOMMANDS = SUBCOMMANDS.first(3).freeze
+    SUBCOMMANDS = %w[fast verify audit deep version init doctor].map!(&:freeze).freeze
+    GATE_SUBCOMMANDS = %w[fast verify audit deep].map!(&:freeze).freeze
     GATE_TOOLS = {
       "fast" => %w[rubocop].freeze,
       "verify" => %w[reek test_suite undercover].freeze,
-      "audit" => %w[brakeman bundler_audit].freeze
+      "audit" => %w[brakeman bundler_audit].freeze,
+      "deep" => %w[rubycritic].freeze
     }.freeze
 
     class << self
@@ -287,7 +288,7 @@ module QualityGate
         return gate_help_text(gate) if gate
 
         <<~TEXT
-          Usage: quality_gate <fast|verify|audit|version|init|doctor> [options]
+          Usage: quality_gate <fast|verify|audit|deep|version|init|doctor> [options]
 
           Run one Quality Gate check for the current project.
 
@@ -295,6 +296,7 @@ module QualityGate
             fast      RuboCop (quick feedback for selected files)
             verify    Reek, test_suite, and Undercover (tests and coverage)
             audit     Brakeman and bundler_audit (security checks)
+            deep      RubyCritic (complexity and duplication checks; optional)
             version   Print the Quality Gate version
             init      Install a plain Ruby project configuration
             doctor    Inspect bounded preflight readiness without running gates
@@ -308,6 +310,7 @@ module QualityGate
             Without --files, the configured files are used. With --files, the command-line paths replace them.
             RuboCop and Reek scan selected paths. The test suite runs in full; Undercover checks the Git diff.
             Brakeman scans the application and bundler-audit scans the lockfile.
+            RubyCritic scans the whole project; --files does not narrow its scan.
 
           Examples:
             quality_gate fast
@@ -315,6 +318,7 @@ module QualityGate
             quality_gate verify --format json
             quality_gate verify --format markdown
             quality_gate doctor --format json
+            quality_gate deep --format json
 
           Exit status:
             0  Checks completed cleanly
@@ -325,6 +329,7 @@ module QualityGate
 
       def gate_help_text(gate)
         tools = GATE_TOOLS.fetch(gate).join(", ")
+        return deep_gate_help_text(tools) if gate == "deep"
 
         <<~TEXT
           Usage: quality_gate #{gate} [options]
@@ -345,6 +350,32 @@ module QualityGate
             quality_gate #{gate}
             quality_gate #{gate} --files app/models/user.rb test/models
             quality_gate #{gate} --format json
+
+          Exit status:
+            0  Checks completed cleanly
+            1  Checks completed with findings
+            2  Quality Gate could not complete (input, config, or tool failure)
+        TEXT
+      end
+
+      def deep_gate_help_text(tools)
+        <<~TEXT
+          Usage: quality_gate deep [options]
+
+          Run the deep gate using these default tools: #{tools}.
+          RubyCritic is optional and must be installed separately.
+
+          Options:
+            --files PATH [PATH ...]  Validate paths for this run; RubyCritic scans the whole project
+            --format FORMAT         Choose text, json, or markdown output (also accepts --format=FORMAT)
+            -h, --help              Show this help
+
+          Scope:
+            RubyCritic scans the whole project. --files paths are validated but do not narrow its scan.
+
+          Examples:
+            quality_gate deep
+            quality_gate deep --format json
 
           Exit status:
             0  Checks completed cleanly
@@ -444,7 +475,8 @@ module QualityGate
           "test_suite" => QualityGate::Adapters::TestSuite,
           "undercover" => QualityGate::Adapters::Undercover,
           "brakeman" => QualityGate::Adapters::Brakeman,
-          "bundler_audit" => QualityGate::Adapters::BundlerAudit
+          "bundler_audit" => QualityGate::Adapters::BundlerAudit,
+          "rubycritic" => QualityGate::Adapters::RubyCritic
         }.freeze
       end
 

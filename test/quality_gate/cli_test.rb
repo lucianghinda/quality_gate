@@ -8,8 +8,8 @@ require "tmpdir"
 module QualityGate
   class CLITest < Minitest::Test
     def test_subcommands_are_exact_and_frozen
-      assert_equal %w[fast verify audit version init doctor], CLI::SUBCOMMANDS
-      assert_equal %w[fast verify audit], CLI::GATE_SUBCOMMANDS
+      assert_equal %w[fast verify audit deep version init doctor], CLI::SUBCOMMANDS
+      assert_equal %w[fast verify audit deep], CLI::GATE_SUBCOMMANDS
       assert_predicate CLI::SUBCOMMANDS, :frozen?
     end
 
@@ -62,6 +62,8 @@ module QualityGate
         assert_includes stdout, "--files PATH [PATH ...]"
         assert_includes stdout, "fast      RuboCop"
         assert_includes stdout, "RuboCop and Reek scan selected paths"
+        assert_includes stdout, "deep      RubyCritic (complexity and duplication checks; optional)"
+        assert_includes stdout, "RubyCritic scans the whole project; --files does not narrow its scan"
         assert_includes stdout, "0  Checks completed cleanly"
         assert_includes stdout, "1  Checks completed with findings"
         assert_includes stdout, "2  Quality Gate could not complete"
@@ -94,6 +96,19 @@ module QualityGate
         assert_includes stdout, "quality_gate verify --files"
         assert_includes stdout, "--format=FORMAT"
         assert_includes stdout, "text, json, or markdown"
+      end
+    end
+
+    def test_deep_help_explains_rubycritic_project_scope_and_manual_opt_in
+      in_directory_with_config("format: invalid\n") do |dir|
+        status, stdout, stderr = run_cli(%w[deep --help], dir: dir)
+
+        assert_equal ExitCode::CLEAN, status
+        assert_empty stderr
+        assert_includes stdout, "Usage: quality_gate deep [options]"
+        assert_includes stdout, "rubycritic"
+        assert_includes stdout, "RubyCritic is optional and must be installed separately"
+        assert_includes stdout, "--files paths are validated but do not narrow its scan"
       end
     end
 
@@ -198,7 +213,7 @@ module QualityGate
         assert_empty stdout
         assert_equal 1, stderr.lines.length
         assert_includes stderr, path
-        assert_includes stderr, "adapters keys must be fast, verify, or audit"
+        assert_includes stderr, "adapters keys must be fast, verify, audit, or deep"
       end
     end
 
@@ -1091,7 +1106,8 @@ module QualityGate
           "test_suite" => QualityGate::Adapters::TestSuite,
           "undercover" => QualityGate::Adapters::Undercover,
           "brakeman" => QualityGate::Adapters::Brakeman,
-          "bundler_audit" => QualityGate::Adapters::BundlerAudit
+          "bundler_audit" => QualityGate::Adapters::BundlerAudit,
+          "rubycritic" => QualityGate::Adapters::RubyCritic
         },
         SecurityRegistryCLI.registered_adapters
       )
@@ -1713,7 +1729,7 @@ module QualityGate
       assert_equal ExitCode::TOOL_FAILURE, status
       assert_empty stdout
       assert_equal 2, stderr.lines.length
-      assert_equal "Usage: quality_gate <fast|verify|audit|version|init|doctor> [options]\n", stderr.lines.last
+      assert_equal "Usage: quality_gate <fast|verify|audit|deep|version|init|doctor> [options]\n", stderr.lines.last
       assert_includes stderr.lines.first, "xml"
       refute_match(/[\u0000-\u001F\u007F]/, stderr.lines.first.chomp)
     end
@@ -1738,7 +1754,7 @@ module QualityGate
       assert_empty stdout
       assert_equal [
         "Error: invalid argument: --format xml middle end\n",
-        "Usage: quality_gate <fast|verify|audit|version|init|doctor> [options]\n"
+        "Usage: quality_gate <fast|verify|audit|deep|version|init|doctor> [options]\n"
       ], stderr.lines
     end
 

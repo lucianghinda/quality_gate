@@ -4,6 +4,8 @@ QualityGate gives Ruby projects one workflow for checking changes: quick feedbac
 
 The `fast` gate runs RuboCop, with optional adapters such as Herb. `verify` runs Reek, the test suite, and Undercover in order. For `audit`, Rails defaults run Brakeman followed by bundler-audit; the Ruby setup uses bundler-audit alone.
 
+An optional `deep` gate using RubyCritic is under development and is not part of the published 0.2.3 release. It runs only when explicitly requested; it is a project-wide design analysis, regardless of `--files`.
+
 ## Quick start
 
 Add QualityGate to your Gemfile using the [installation instructions](#installation). For a Ruby gem or application with an existing test suite, run:
@@ -38,6 +40,36 @@ bundle exec quality_gate fast
 bundle exec quality_gate verify
 bundle exec quality_gate audit
 ```
+
+### Deep analysis (unreleased)
+
+The upcoming `deep` gate is invoked explicitly and supports the usual output formats:
+
+```sh
+bundle exec quality_gate deep --format text
+bundle exec quality_gate deep --format json
+bundle exec quality_gate deep --format markdown
+```
+
+RubyCritic is optional and is not installed by QualityGate. Add it to the host project's Gemfile (for example, `gem "rubycritic", "~> 5", require: false`) and run `bundle install` before invoking the gate. The upcoming default is `deep: [rubycritic]`; `commands.deep.rubycritic` overrides the launcher argv prefix, with the adapter supplying RubyCritic's analysis flags and managing its output directory. Its timeout can be set with `timeouts.rubycritic` (otherwise the existing 120-second default applies).
+
+```yaml
+adapters:
+  deep:
+    - rubycritic
+commands:
+  deep:
+    rubycritic:
+      - bundle
+      - exec
+      - rubycritic
+timeouts:
+  rubycritic: 120
+```
+
+RubyCritic analyzes the project as a whole; `--files` does not narrow this gate. Its findings complement tests and security checks and may overlap Reek. QualityGate does not add a score budget or minimum; RubyCritic owns its score. A completed analysis with no smells exits `0`, reported smells exit `1`, and missing input, configuration, or tool failures exit `2`. A report containing no analyzed Ruby modules is a tool failure, not a clean result. The JSON report is captured through a temporary file that QualityGate removes on success or failure; the adapter does not request HTML output or project-local report artifacts.
+
+This gate is a manual command only. It does not add generated hooks or workflow steps.
 
 The built-in fast path is meant for changed files:
 

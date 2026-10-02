@@ -283,6 +283,16 @@ module QualityGate
       assert_empty result.checks.first.fetch(:requested_files)
     end
 
+    def test_runner_reports_rubycritic_as_project_scope_even_with_selected_files
+      config = Config.new(Config.defaults.merge(files: ["lib/example.rb"]))
+      adapter = ReturningFindingsAdapter.new(name: "rubycritic", findings: [], config: config)
+
+      result = Runner.new(adapters: [adapter], config: config).call
+
+      assert_equal "project", result.checks.first.fetch(:scope)
+      assert_empty result.checks.first.fetch(:requested_files)
+    end
+
     def test_runner_does_not_fail_when_progress_diagnostics_cannot_be_written
       config = Config.new(Config.defaults)
       diagnostic_io = Object.new

@@ -80,6 +80,8 @@ module QualityGate
     lib/rubocop/cop/quality_gate/controller_instance_variables.rb
     lib/quality_gate/adapters/reek.rb
     lib/quality_gate/adapters/herb.rb
+    lib/quality_gate/adapters/rubycritic.rb
+    lib/quality_gate/adapters/rubycritic_report.rb
     lib/quality_gate/adapters/rubocop.rb
     lib/quality_gate/adapters/brakeman.rb
     lib/quality_gate/adapters/bundler_audit.rb
