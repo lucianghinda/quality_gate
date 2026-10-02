@@ -1,3 +1,7 @@
+## Unreleased
+
+- Add an optional, explicitly invoked RubyCritic-backed `deep` gate for project-wide design analysis. RubyCritic remains a host-project dependency; the gate does not add a score budget or generated hooks/workflows.
+
 ## [0.2.3] - 2026-10-02
 
 - Reek scans the project when a bare gate invocation has no selected paths.

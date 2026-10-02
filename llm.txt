@@ -4,6 +4,11 @@ Quality Gate provides staged Ruby code-quality checks through one CLI and
 configuration contract. See the README for installation, gate commands,
 configuration, and optional RuboCop conventions.
 
+An optional `deep` gate backed by RubyCritic is under development, beyond the
+published 0.2.3 release. It is invoked manually, analyzes the whole project,
+and requires RubyCritic in the host project's bundle. See the README's Deep
+analysis section for setup, output, exit status, and scope.
+
 ## Documentation
 
 - [README](README.md)

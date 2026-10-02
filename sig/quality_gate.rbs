@@ -141,6 +141,15 @@ module QualityGate
       def timeout: () -> Integer
     end
 
+    class RubyCritic < Adapter
+      def initialize: (config: Config, ?files: Array[String], ?diagnostic_io: _Output) -> void
+      def call: () -> Array[Finding]
+      def name: () -> String
+      def command: () -> Array[String]
+      def parse: (String json) -> Array[Finding]
+      def timeout: () -> Integer
+    end
+
     class SimpleCov < Adapter
       COVERAGE_PATH: String
 
