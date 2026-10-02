@@ -76,6 +76,55 @@ module QualityGate
       RUBY
     end
 
+    def test_concurrent_directory_operations_support_concurrent_first_use
+      assert_bundled_subprocess_success(<<~'RUBY')
+        require "timeout"
+        require "tmpdir"
+
+        abort "Fiddle already loaded" if defined?(Fiddle)
+        operations = QualityGate::Installation.const_get(:DirectoryOperations, false)
+        original_require = Kernel.instance_method(:require)
+        started = Queue.new
+        release = Queue.new
+        workers = []
+
+        begin
+          2.times do
+            workers << Thread.new do
+              Dir.mktmpdir("directory-operations") do |dir|
+                File.open(dir, File::RDONLY) do |root|
+                  started << :ready
+                  release.pop
+                  operations.open_directory(root, ".", File::RDONLY).close
+                end
+              end
+            rescue StandardError => error
+              started << error
+              raise
+            end
+          end
+
+          2.times do
+            event = Timeout.timeout(5) { started.pop }
+            raise event if event.is_a?(StandardError)
+          end
+          2.times { release << true }
+          Timeout.timeout(5) { workers.each(&:value) }
+        ensure
+          2.times { release << true }
+          workers.each do |worker|
+            worker.join(1) || worker.kill
+            worker.join
+          end
+        end
+
+        abort "Fiddle did not load" unless defined?(Fiddle::Importer)
+        unless Kernel.instance_method(:require) == original_require
+          abort "Kernel#require changed"
+        end
+      RUBY
+    end
+
     private
 
     def assert_subprocess_success(source)

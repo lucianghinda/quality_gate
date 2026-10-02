@@ -256,14 +256,13 @@ module Acceptance
       end
     end
 
-    def test_repository_path_is_serialized_as_a_ruby_string_literal
+    def test_repository_path_with_quotes_and_backslashes_remains_usable
       Dir.mktmpdir("quality-gate-repository-path") do |directory|
-        aliased_root = File.join(directory, "quality'gate\\repository")
+        aliased_root = File.join(directory, "quality'gate\\repository#{"x" * 100}")
         File.symlink(ROOT, aliased_root)
         assert_project_materializes_cleanly(
           repository_root: aliased_root,
           command: "fast",
-          arguments: %w[--files lib/calculator.rb],
           failure: "escaped repository path could not materialize"
         )
       end

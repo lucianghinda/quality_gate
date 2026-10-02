@@ -28,6 +28,19 @@ module Acceptance
       end
     end
 
+    def test_fast_gate_accepts_a_long_repository_source_path
+      Dir.mktmpdir("quality-gate-long-source-path") do |directory|
+        source = File.join(directory, "quality-gate-source-#{"x" * 100}")
+        File.symlink(ROOT, source)
+
+        ruby_project.open(repository_root: source) do |project|
+          run = project.run("fast")
+
+          assert_equal 0, run.status, run_diagnostic(run)
+        end
+      end
+    end
+
     def test_repeated_init_is_idempotent
       ruby_project.open(repository_root: ROOT) do |project|
         first = project.init
