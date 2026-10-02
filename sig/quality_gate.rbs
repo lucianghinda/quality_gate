@@ -33,6 +33,7 @@ module QualityGate
     def create_initializers: () -> void
     def inject_coverage: () -> void
     def create_agent_integration: () -> void
+    def create_ci_workflow: () -> void
     def print_summary: () -> void
   end
 
@@ -48,6 +49,18 @@ module QualityGate
 
     def initialize: (destination_root: String, ?options: Hash[Symbol, untyped]) -> void
     def coverage?: () -> bool
+    def template_for: (String name) -> String
+  end
+
+  class RailsProfile
+    attr_reader destination_root: String
+    attr_reader framework: String
+    attr_reader test_helper: String
+    attr_reader test_command: Array[String]
+
+    def initialize: (destination_root: String, ?options: Hash[Symbol, untyped]) -> void
+    def coverage?: () -> bool
+    def missing_default_helper?: () -> bool
     def template_for: (String name) -> String
   end
 
@@ -106,6 +119,14 @@ module QualityGate
       def command: () -> Array[String]
       def parse: (String stdout) -> Array[Finding]
       def timeout: () -> Integer
+    end
+
+    class Herb < Adapter
+      def initialize: (config: Config, ?files: Array[String], ?diagnostic_io: _Output) -> void
+      def call: () -> Array[Finding]
+      def name: () -> String
+      def command: () -> Array[String]
+      def parse: (String stdout) -> Array[Finding]
     end
 
     class RuboCop < Adapter

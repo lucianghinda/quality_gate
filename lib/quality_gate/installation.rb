@@ -224,7 +224,7 @@ module QualityGate
       relative_path = test_helper_path
       path = safe_destination_path(relative_path)
       return unless path
-      return skip_missing_test_helper unless File.file?(path)
+      return skip_missing_test_helper(relative_path) unless File.file?(path)
 
       install_coverage(path, relative_path)
     end
@@ -246,6 +246,12 @@ module QualityGate
       install_template("claude_settings.json.tt", ".claude/settings.json")
       install_agent_contract("CLAUDE.md")
       install_agent_contract("AGENTS.md")
+    end
+
+    def create_ci_workflow
+      return unless invoke_behavior? && options[:ci]
+
+      install_template("quality_gate_workflow.yml.tt", ".github/workflows/quality_gate.yml")
     end
 
     def print_summary
@@ -577,9 +583,9 @@ module QualityGate
       markers
     end
 
-    def skip_missing_test_helper
-      say "Warning: Minitest coverage wiring skipped; test/test_helper.rb is missing."
-      record(:skipped, "test/test_helper.rb (missing; Minitest coverage wiring skipped)")
+    def skip_missing_test_helper(relative_path)
+      say "Warning: Minitest coverage wiring skipped; #{relative_path} is missing."
+      record(:skipped, "#{relative_path} (missing; Minitest coverage wiring skipped)")
     end
 
     def skip_existing_simplecov(relative_path)

@@ -26,7 +26,9 @@ module QualityGate
         tool = name
         stderr = +""
         argv = validated_command
-        stdout, stderr, status = capture(argv, resolved_timeout(tool), env:, combine_output: true)
+        timeout_seconds = resolved_timeout(tool)
+        invalidate_stale_simplecov_summary if simplecov_configured_for_verify?
+        stdout, stderr, status = capture(argv, timeout_seconds, env:, combine_output: true)
         return [] if status.success?
 
         [failed_test_finding(stdout, stderr)]
@@ -37,6 +39,15 @@ module QualityGate
       end
 
       private
+
+      def simplecov_configured_for_verify?
+        config.fetch(:adapters).fetch(:verify).any? { _1.to_s == "simplecov" }
+      end
+
+      def invalidate_stale_simplecov_summary
+        path = Adapters::SimpleCov::COVERAGE_PATH
+        File.delete(path) if File.file?(path)
+      end
 
       def failed_test_finding(stdout, stderr)
         test_failure(stdout, stderr, log_path: write_failure_log(stdout, stderr))

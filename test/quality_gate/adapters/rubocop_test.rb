@@ -149,6 +149,31 @@ module QualityGate
         end
       end
 
+      def test_explicit_erb_files_are_filtered_without_dropping_other_selected_targets
+        Dir.mktmpdir do |dir|
+          ruby_file = File.join(dir, "script.rb")
+          erb_file = File.join(dir, "view.html.erb")
+          gemspec = File.join(dir, "example.gemspec")
+          rakefile = File.join(dir, "Rakefile")
+          [ruby_file, erb_file, gemspec, rakefile].each { File.write(_1, "# selected\n") }
+
+          command = build_adapter(files: [ruby_file, erb_file, gemspec, rakefile]).command
+
+          assert_equal [ruby_file, gemspec, rakefile], command.last(3)
+        end
+      end
+
+      def test_call_returns_empty_without_spawning_for_an_erb_only_selection
+        Dir.mktmpdir do |dir|
+          erb_file = File.join(dir, "view.html.erb")
+          File.write(erb_file, "<p>view</p>\n")
+          adapter = build_adapter(files: [erb_file])
+          adapter.define_singleton_method(:capture) { |*| flunk "RuboCop must skip explicit ERB input" }
+
+          assert_empty adapter.call
+        end
+      end
+
       def test_command_keeps_a_leading_dash_path_positional
         Dir.mktmpdir do |dir|
           path = "--autocorrect-all"
@@ -206,6 +231,7 @@ module QualityGate
 
       def test_parse_raises_parse_error_for_invalid_report_shapes
         invalid_reports = {
+          "root is not an object" => [],
           "missing files" => {},
           "files not array" => { "files" => {} },
           "file entry not hash" => { "files" => ["bad"] },

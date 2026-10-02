@@ -38,7 +38,8 @@ module QualityGate
       def command
         argv = ["reek", "--format", "json"]
         argv.concat(["--config", CONFIG_PATH]) unless host_config?
-        argv.concat(resolved_paths_for_command)
+        paths = resolved_paths_for_command
+        argv.concat(paths.empty? && files.empty? ? ["."] : paths)
       end
 
       def parse(stdout)
@@ -53,7 +54,12 @@ module QualityGate
       private
 
       def existing_paths
-        files.filter_map { |path| positional_path(path) if File.exist?(path) }.freeze
+        files.filter_map do |path|
+          next unless File.exist?(path)
+          next if File.file?(path) && File.extname(path).downcase == ".erb"
+
+          positional_path(path)
+        end.freeze
       end
 
       def positional_path(path) = path.start_with?("-") ? File.join(".", path) : path

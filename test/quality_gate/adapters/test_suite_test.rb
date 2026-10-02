@@ -90,6 +90,87 @@ module QualityGate
         end
       end
 
+      def test_suite_with_simplecov_configured_removes_only_a_stale_summary_before_running
+        with_temp_project do
+          FileUtils.mkdir_p("coverage")
+          File.write("coverage/.last_run.json", '{"result":{"line":100}}')
+          File.write("coverage/.resultset.json", "host result data")
+          command = ruby_command(<<~RUBY)
+            exit 1 if File.exist?("coverage/.last_run.json")
+            exit 1 unless File.read("coverage/.resultset.json") == "host result data"
+          RUBY
+
+          adapter = build_adapter(
+            config: config_with_command(command, verify_adapters: %w[test_suite simplecov])
+          )
+
+          assert_empty adapter.call
+          refute File.exist?("coverage/.last_run.json")
+          assert_equal "host result data", File.read("coverage/.resultset.json")
+        end
+      end
+
+      def test_suite_without_simplecov_configured_preserves_the_summary
+        with_temp_project do
+          FileUtils.mkdir_p("coverage")
+          File.write("coverage/.last_run.json", '{"result":{"line":100}}')
+
+          assert_empty build_adapter(config: config_with_command(ruby_command("exit 0"))).call
+          assert File.file?("coverage/.last_run.json")
+        end
+      end
+
+      def test_summary_invalidation_failure_is_reported_as_a_tool_failure
+        with_temp_project do
+          FileUtils.mkdir_p("coverage")
+          File.write("coverage/.last_run.json", '{"result":{"line":100}}')
+          adapter = build_adapter(
+            config: config_with_command(ruby_command("exit 0"), verify_adapters: %w[test_suite simplecov])
+          )
+          adapter.define_singleton_method(:capture) { |*| flunk "suite must not run after invalidation fails" }
+
+          findings = File.stub(:delete, ->(path) { raise Errno::EACCES, path }) { adapter.call }
+
+          assert_equal 1, findings.length
+          assert findings.first.tool_failure?
+          assert_equal "test_suite", findings.first.tool
+        end
+      end
+
+      def test_invalid_command_leaves_the_summary_intact_without_running_the_suite
+        with_temp_project do
+          write_simplecov_summary
+          adapter = build_adapter(
+            config: config_with_command(ruby_command("exit 0"), verify_adapters: %w[test_suite simplecov])
+          )
+          adapter.define_singleton_method(:command) { ["invalid-command-argument", 1] }
+          adapter.define_singleton_method(:capture) { |*| flunk "suite must not run with an invalid command" }
+
+          findings = adapter.call
+
+          assert findings.first.tool_failure?
+          assert File.file?("coverage/.last_run.json")
+        end
+      end
+
+      def test_invalid_timeout_leaves_the_summary_intact_without_running_the_suite
+        with_temp_project do
+          write_simplecov_summary
+          timeouts = { default: 120, test_suite: "invalid" }
+          adapter = build_adapter(
+            config: config_with_command(
+              ruby_command("exit 0"), verify_adapters: %w[test_suite simplecov], timeouts:
+            )
+          )
+          adapter.define_singleton_method(:capture) { |*| flunk "suite must not run with an invalid timeout" }
+
+          findings = adapter.call
+
+          assert findings.first.tool_failure?
+          assert File.file?("coverage/.last_run.json")
+        end
+      end
+
       def test_log_write_failure_preserves_test_failure_tail_and_reports_diagnostic
         with_temp_project do
           File.write("log", "a file blocks the log directory")
@@ -156,9 +237,14 @@ module QualityGate
         TestSuite.new(config:, files:)
       end
 
-      def config_with_command(command)
+      def config_with_command(
+        command,
+        verify_adapters: Config.defaults.fetch(:adapters).fetch(:verify),
+        timeouts: Config.defaults.fetch(:timeouts)
+      )
         commands = Config.defaults.fetch(:commands).merge(verify: { test_suite: command })
-        Config.new(Config.defaults.merge(commands:))
+        adapters = Config.defaults.fetch(:adapters).merge(verify: verify_adapters)
+        Config.new(Config.defaults.merge(adapters:, commands:, timeouts:))
       end
 
       def ruby_command(script, *args)
@@ -181,6 +267,11 @@ module QualityGate
         Dir.mktmpdir do |dir|
           Dir.chdir(dir, &block)
         end
+      end
+
+      def write_simplecov_summary
+        FileUtils.mkdir_p("coverage")
+        File.write("coverage/.last_run.json", '{"result":{"line":100}}')
       end
     end
   end

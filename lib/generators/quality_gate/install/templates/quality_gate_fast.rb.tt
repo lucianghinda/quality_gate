@@ -4,6 +4,7 @@
 require "json"
 require "open3"
 require "time"
+require "yaml"
 
 begin
   require "fiddle/import"
@@ -71,9 +72,21 @@ def outcome_for(exit_status, findings)
   "findings" if exit_status == 1 && findings.any?
 end
 
-def initial_outcome(file)
+def herb_configured?(project_root)
+  path = File.join(project_root, ".quality_gate.yml")
+  return false unless File.file?(path)
+
+  document = YAML.safe_load(File.read(path))
+  gate_adapters = document.fetch("adapters", nil) if document.is_a?(Hash)
+  adapters = gate_adapters.fetch("fast", nil) if gate_adapters.is_a?(Hash)
+  adapters.is_a?(Array) && adapters.include?("herb")
+rescue Psych::Exception, SystemCallError
+  false
+end
+
+def initial_outcome(file, project_root)
   return "no_file" unless file
-  return "skipped" unless file.end_with?(".rb")
+  return "skipped" unless file.end_with?(".rb") || (file.end_with?(".erb") && herb_configured?(project_root))
   return "deleted" unless File.file?(file)
 
   "unavailable"
@@ -208,7 +221,7 @@ project_root = Dir.pwd unless project_root.is_a?(String) && !project_root.empty?
 tool_input = input["tool_input"]
 file = tool_input["file_path"] if tool_input.is_a?(Hash)
 file = nil unless file.is_a?(String) && !file.empty?
-outcome = initial_outcome(file)
+outcome = initial_outcome(file, project_root)
 attempt_was_made = outcome == "unavailable"
 exit_code = 0
 feedback = nil

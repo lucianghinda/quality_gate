@@ -57,7 +57,9 @@ module QualityGate
       end
 
       def parse(stdout)
-        report = parse_report(stdout)
+        report = JSON.parse(stdout)
+        raise TypeError, "report must be a JSON object" unless report.is_a?(Hash)
+
         parse_files(report.fetch("files"))
       rescue JSON::ParserError, KeyError, TypeError, ArgumentError => e
         raise ParseError.new(tool: name, reason: e.message)
@@ -66,7 +68,12 @@ module QualityGate
       private
 
       def existing_paths
-        files.filter_map { |path| positional_path(path) if File.exist?(path) }.freeze
+        files.filter_map do |path|
+          next unless File.exist?(path)
+          next if File.file?(path) && File.extname(path).downcase == ".erb"
+
+          positional_path(path)
+        end.freeze
       end
 
       def positional_path(path) = path.start_with?("-") ? File.join(".", path) : path
@@ -95,13 +102,6 @@ module QualityGate
       end
 
       def resolved_paths_for_command = @resolved_paths_for_call || existing_paths
-
-      def parse_report(stdout)
-        report = JSON.parse(stdout)
-        raise TypeError, "report must be a JSON object" unless report.is_a?(Hash)
-
-        report
-      end
 
       def parse_files(entries)
         raise TypeError, "files must be an array" unless entries.is_a?(Array)

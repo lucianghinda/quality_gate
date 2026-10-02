@@ -17,6 +17,7 @@ end
 require_relative "quality_gate/adapter"
 require_relative "quality_gate/adapters/brakeman"
 require_relative "quality_gate/adapters/bundler_audit"
+require_relative "quality_gate/adapters/herb"
 require_relative "quality_gate/adapters/reek"
 require_relative "quality_gate/adapters/rubocop"
 require_relative "quality_gate/adapters/simplecov"

@@ -263,6 +263,26 @@ module QualityGate
       assert_empty result.checks.first.fetch(:requested_files)
     end
 
+    def test_runner_reports_herb_as_a_selected_file_tool
+      config = Config.new(Config.defaults.merge(files: ["app/views/users/show.html.erb"]))
+      adapter = ReturningFindingsAdapter.new(name: "herb", findings: [], config: config)
+
+      result = Runner.new(adapters: [adapter], config: config).call
+
+      assert_equal "selected_files", result.checks.first.fetch(:scope)
+      assert_equal ["app/views/users/show.html.erb"], result.checks.first.fetch(:requested_files)
+    end
+
+    def test_runner_reports_herb_as_project_scope_without_a_selection
+      config = Config.new(Config.defaults)
+      adapter = ReturningFindingsAdapter.new(name: "herb", findings: [], config: config)
+
+      result = Runner.new(adapters: [adapter], config: config).call
+
+      assert_equal "project", result.checks.first.fetch(:scope)
+      assert_empty result.checks.first.fetch(:requested_files)
+    end
+
     def test_runner_does_not_fail_when_progress_diagnostics_cannot_be_written
       config = Config.new(Config.defaults)
       diagnostic_io = Object.new

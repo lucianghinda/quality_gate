@@ -78,14 +78,17 @@ module Acceptance
 
     def test_verify_catches_an_uncovered_method_introduced_after_init
       ruby_project.open(repository_root: ROOT) do |project|
-        assert_successful_init project.init
+        assert_successful_init project.init("--ci")
+        assert_full_history_ci_workflow(project)
 
-        append_to_calculator(project, "\n  def self.subtract(left, right)\n    left - right\n  end\n")
+        append_to_calculator(
+          project,
+          "\nmodule Calculator\n  def self.subtract(left, right)\n    left - right\n  end\nend\n"
+        )
+        assert_undercover_detected(project)
 
-        run = project.run("verify")
-
-        assert_equal 1, run.status, run_diagnostic(run)
-        assert undercover_finding?(run.report.fetch("findings")), run_diagnostic(run)
+        append_subtracting_test(project)
+        assert_undercover_clean(project)
       end
     end
 
@@ -140,6 +143,42 @@ module Acceptance
 
     def undercover_finding?(findings)
       findings.any? { _1.fetch("tool") == "undercover" }
+    end
+
+    def assert_full_history_ci_workflow(project)
+      workflow = File.read(File.join(project.root, ".github/workflows/quality_gate.yml"))
+
+      assert_includes workflow, "fetch-depth: 0"
+      assert_includes workflow, "run: bundle exec quality_gate verify"
+    end
+
+    def assert_undercover_detected(project)
+      run = project.run("verify")
+
+      assert_equal 1, run.status, run_diagnostic(run)
+      assert undercover_finding?(run.report.fetch("findings")), run_diagnostic(run)
+    end
+
+    def append_subtracting_test(project)
+      File.open(File.join(project.root, "test/calculator_test.rb"), "a") do |file|
+        file.write(<<~RUBY)
+
+          class CalculatorTest < Minitest::Test
+            def test_subtracts_two_numbers
+              assert_equal 1, Calculator.subtract(2, 1)
+            end
+          end
+        RUBY
+      end
+    end
+
+    def assert_undercover_clean(project)
+      run = project.run("verify")
+      findings = run.report.fetch("findings")
+
+      assert_equal 0, run.status, run_diagnostic(run)
+      refute undercover_finding?(findings), run_diagnostic(run)
+      refute findings.any? { |finding| finding.fetch("rule") == "undercover_skipped" }, run_diagnostic(run)
     end
 
     def snapshot(root)

@@ -1,0 +1,42 @@
+{
+  "offenses": [
+    {
+      "filename": "app/views/users/show.html.erb",
+      "message": "No `framework` is set in `.herb.yml`, so Herb assumes plain `ruby` templates. Set `framework` to one of `ruby`, `actionview`, `hanami`, or `sinatra` so Herb can tailor its assumptions, rules, and optimizations to your framework.",
+      "location": {
+        "start": { "line": 1, "column": 0 },
+        "end": { "line": 1, "column": 17 }
+      },
+      "severity": "info",
+      "code": "herb-config-framework-option",
+      "source": "Herb Linter"
+    },
+    {
+      "filename": "app/views/users/show.html.erb",
+      "message": "Missing required `alt` attribute on `<img>` tag. Add `alt=\"\"` for decorative images or `alt=\"description\"` for informative images.",
+      "location": {
+        "start": { "line": 1, "column": 1 },
+        "end": { "line": 1, "column": 4 }
+      },
+      "severity": "warning",
+      "code": "html-img-require-alt",
+      "source": "Herb Linter"
+    }
+  ],
+  "summary": {
+    "filesChecked": 1,
+    "filesWithOffenses": 1,
+    "totalErrors": 0,
+    "totalWarnings": 1,
+    "totalInfo": 1,
+    "totalHints": 0,
+    "totalIgnored": 0,
+    "totalOffenses": 1,
+    "totalNotReported": 0,
+    "ruleCount": 146
+  },
+  "timing": null,
+  "completed": true,
+  "clean": false,
+  "message": null
+}

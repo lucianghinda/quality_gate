@@ -6,5 +6,6 @@ if ENV['COVERAGE'] == '1'
   SimpleCov.start do
     enable_coverage :branch
     add_filter '/test/'
+    add_filter '/spec/'
   end
 end

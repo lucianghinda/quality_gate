@@ -24,6 +24,109 @@ module QualityGate
       end
     end
 
+    def test_rails_profile_is_available_without_changing_plain_ruby_profile_defaults
+      assert QualityGate.const_defined?(:RailsProfile, false)
+
+      with_project("test/test_helper.rb") do |root|
+        profile = RubyProfile.new(destination_root: root, options: {})
+
+        assert_equal %w[bundle exec rake test], profile.test_command
+      end
+    end
+
+    def test_rails_profile_keeps_rails_minitest_defaults
+      with_project("test/test_helper.rb") do |root|
+        profile = RailsProfile.new(destination_root: root, options: {})
+
+        assert_equal "minitest", profile.framework
+        assert_equal "test/test_helper.rb", profile.test_helper
+        assert_equal %w[bin/rails test], profile.test_command
+        assert profile.coverage?
+        assert_equal "rails_quality_gate.yml.tt", profile.template_for("quality_gate.yml.tt")
+      end
+    end
+
+    def test_rails_profile_detects_rspec_and_infers_it_from_a_spec_helper_override
+      with_project("spec/rails_helper.rb") do |root|
+        detected = RailsProfile.new(destination_root: root, options: {})
+        overridden = RailsProfile.new(
+          destination_root: root,
+          options: { test_helper: "spec/rails_helper.rb", test_command: "bundle exec rspec --format progress" }
+        )
+
+        assert_equal ["rspec", "spec/rails_helper.rb", %w[bundle exec rspec]],
+                     [detected.framework, detected.test_helper, detected.test_command]
+        assert_equal ["rspec", %w[bundle exec rspec --format progress]],
+                     [overridden.framework, overridden.test_command]
+      end
+    end
+
+    def test_rails_profile_requires_a_framework_when_both_default_helpers_exist
+      with_project("test/test_helper.rb", "spec/rails_helper.rb") do |root|
+        error = assert_raises(ArgumentError) { RailsProfile.new(destination_root: root, options: {}) }
+
+        assert_includes error.message, "test-framework"
+        assert_equal "rspec", RailsProfile.new(destination_root: root, options: { test_framework: "rspec" }).framework
+      end
+    end
+
+    def test_rails_profile_preserves_the_missing_default_helper_warning_path
+      with_project do |root|
+        profile = RailsProfile.new(destination_root: root, options: {})
+
+        assert_equal "test/test_helper.rb", profile.test_helper
+        assert_equal "minitest", profile.framework
+        assert profile.missing_default_helper?
+      end
+    end
+
+    def test_rails_profile_rejects_invalid_framework_paths_and_empty_commands
+      with_project("test/test_helper.rb") do |root|
+        assert_raises(ArgumentError) do
+          RailsProfile.new(destination_root: root, options: { test_framework: "cucumber" })
+        end
+        assert_raises(ArgumentError) do
+          RailsProfile.new(destination_root: root, options: { test_helper: "../outside.rb" })
+        end
+        assert_raises(ArgumentError) do
+          RailsProfile.new(destination_root: root, options: { test_command: "  " })
+        end
+      end
+    end
+
+    def test_rails_profile_allows_a_symlinked_helper_when_coverage_is_skipped
+      with_project do |root|
+        external_helper = File.join(root, "outside_helper.rb")
+        File.write(external_helper, "# host-owned helper\n")
+        File.symlink(external_helper, File.join(root, "rails_helper.rb"))
+
+        profile = RailsProfile.new(
+          destination_root: root,
+          options: { test_helper: "rails_helper.rb", skip_coverage: true }
+        )
+
+        assert_equal "rails_helper.rb", profile.test_helper
+        refute profile.coverage?
+        assert_equal "# host-owned helper\n", File.read(external_helper)
+      end
+    end
+
+    def test_rails_profile_requires_an_existing_custom_helper_when_coverage_is_enabled
+      with_project do |root|
+        error = assert_raises(ArgumentError) do
+          RailsProfile.new(destination_root: root, options: { test_helper: "support/rails_helper.rb" })
+        end
+        assert_includes error.message, "does not exist"
+
+        profile = RailsProfile.new(
+          destination_root: root,
+          options: { test_helper: "support/rails_helper.rb", skip_coverage: true }
+        )
+        assert_equal "support/rails_helper.rb", profile.test_helper
+        refute profile.coverage?
+      end
+    end
+
     def test_detects_rspec_and_uses_its_default_command
       with_project("spec/spec_helper.rb") do |root|
         profile = RubyProfile.new(destination_root: root, options: {})

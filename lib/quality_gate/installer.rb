@@ -15,6 +15,7 @@ module QualityGate
       test_helper
       test_command
       agents
+      ci
       pretend
       skip_coverage
     ].freeze
@@ -25,6 +26,7 @@ module QualityGate
       create_initializers
       inject_coverage
       create_agent_integration
+      create_ci_workflow
     ].freeze
 
     attr_reader :destination_root, :stdout, :profile

@@ -22,6 +22,7 @@ module QualityGate
         SimpleCov.start do
           enable_coverage :branch
           add_filter '/test/'
+          add_filter '/spec/'
         end
       end
     RUBY
@@ -92,7 +93,9 @@ module QualityGate
       coverage = record.fetch("coverage")
       assert_includes coverage.keys, relative_path(host_files.fetch(:source), dir)
       refute_includes coverage.keys, relative_path(host_files.fetch(:filtered_test), dir)
+      refute_includes coverage.keys, relative_path(host_files.fetch(:filtered_spec), dir)
       refute(coverage.keys.any? { _1.start_with?("test/") }, "expected test files to be filtered")
+      refute(coverage.keys.any? { _1.start_with?("spec/") }, "expected spec files to be filtered")
     end
 
     def relative_path(path, dir)
@@ -109,7 +112,8 @@ module QualityGate
     def write_minimal_host(dir)
       lib_dir = File.join(dir, "lib")
       test_dir = File.join(dir, "test")
-      FileUtils.mkdir_p([lib_dir, test_dir])
+      spec_dir = File.join(dir, "spec")
+      FileUtils.mkdir_p([lib_dir, test_dir, spec_dir])
       File.write(File.join(dir, ".simplecov"), <<~RUBY)
         SimpleCov.remove_filter %r{\\A(test|features|spec|autotest)/}
       RUBY
@@ -140,11 +144,20 @@ module QualityGate
           end
         end
       RUBY
+      filtered_spec = File.join(spec_dir, "loaded_after_coverage.rb")
+      File.write(filtered_spec, <<~RUBY)
+        module LoadedAfterSpec
+          def self.classify(value)
+            value ? :covered : :uncovered
+          end
+        end
+      RUBY
 
       File.write(File.join(test_dir, "test_helper.rb"), <<~RUBY)
         #{rendered_template}
         require_relative "../lib/example"
         require_relative "loaded_after_coverage"
+        require_relative "../spec/loaded_after_coverage"
       RUBY
       File.write(File.join(test_dir, "probe.rb"), <<~RUBY)
         require_relative "test_helper"
@@ -153,7 +166,7 @@ module QualityGate
         raise "unexpected test helper result" unless LoadedAfterCoverage.classify(true) == :covered
       RUBY
 
-      { source: source, filtered_test: filtered_test }
+      { source: source, filtered_test: filtered_test, filtered_spec: filtered_spec }
     end
   end
 end

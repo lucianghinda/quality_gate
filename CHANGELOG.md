@@ -1,3 +1,12 @@
+## [Unreleased]
+
+- Reek scans the project when a bare gate invocation has no selected paths.
+- When SimpleCov is enabled in verify, its aggregate summary must come from the current test run.
+- bundler-audit treats abnormal process exits and status/report conflicts as tool failures.
+- Rails setup can select Minitest or RSpec, a helper, and a test command.
+- The optional Herb adapter adds ERB checks without changing fast-gate defaults.
+- Ruby and Rails setup can opt in to a full-history GitHub Actions workflow with separate gate steps.
+
 ## [0.2.2] - 2026-09-28
 
 - Fiddle is now a runtime dependency, so the installer loads it with a plain `require` on Ruby 4.x under Bundler. This removes the runtime `Kernel#require` patch and the hand-built extension path that missed on hosts where RbConfig and RubyGems spell the platform differently (for example `arm64-darwin25` vs `arm64-darwin-25`).

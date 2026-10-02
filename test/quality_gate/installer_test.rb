@@ -8,6 +8,17 @@ require "quality_gate/installer"
 
 module QualityGate
   class InstallerTest < Minitest::Test
+    def test_ci_workflow_task_follows_the_existing_install_tasks
+      assert_equal %i[
+        create_settings_file
+        create_rules_file
+        create_initializers
+        inject_coverage
+        create_agent_integration
+        create_ci_workflow
+      ], Installer::INSTALL_STEPS
+    end
+
     def test_plain_ruby_install_uses_shared_files_without_rails_artifacts
       with_project("test/test_helper.rb") do |root|
         output = StringIO.new
@@ -16,7 +27,50 @@ module QualityGate
 
         assert_equal 0, status
         assert_plain_install_artifacts(root)
+        refute_path_exists File.join(root, ".github/workflows/quality_gate.yml")
         assert_includes output.string, "Quality Gate install summary:"
+      end
+    end
+
+    def test_ci_workflow_is_opt_in_and_survives_a_later_install_without_ci
+      with_project("test/test_helper.rb") do |root|
+        status = run_installer(root, ci: true)
+        workflow_path = File.join(root, ".github/workflows/quality_gate.yml")
+
+        assert_equal 0, status
+        assert_path_exists workflow_path
+        content = File.read(workflow_path)
+        assert_ci_workflow_contract(content)
+
+        assert_equal 0, run_installer(root, ci: true)
+        assert_equal content, File.read(workflow_path)
+        assert_equal 0, run_installer(root, {})
+        assert_equal content, File.read(workflow_path)
+      end
+    end
+
+    def test_ci_preview_does_not_write_the_workflow
+      with_project("test/test_helper.rb") do |root|
+        status = run_installer(root, ci: true, pretend: true)
+
+        assert_equal 0, status
+        refute_path_exists File.join(root, ".github/workflows/quality_gate.yml")
+      end
+    end
+
+    def test_ci_install_preserves_custom_workflow_and_unrelated_workflows
+      with_project("test/test_helper.rb") do |root|
+        workflow_path = File.join(root, ".github/workflows/quality_gate.yml")
+        other_path = File.join(root, ".github/workflows/release.yml")
+        FileUtils.mkdir_p(File.dirname(workflow_path))
+        File.write(workflow_path, "name: Host-owned workflow\n")
+        File.write(other_path, "name: Release\n")
+
+        status = run_installer(root, ci: true)
+
+        assert_equal 1, status
+        assert_equal "name: Host-owned workflow\n", File.read(workflow_path)
+        assert_equal "name: Release\n", File.read(other_path)
       end
     end
 
@@ -170,6 +224,20 @@ module QualityGate
     end
 
     private
+
+    def assert_ci_workflow_contract(content)
+      %W[
+        push:
+        pull_request:
+        contents: read
+        uses: actions/checkout@v7
+        uses: ruby/setup-ruby@v1
+        ruby-version: "#{RUBY_VERSION}"
+        fetch-depth: 0
+        persist-credentials: false
+      ].each { assert_includes content, _1 }
+      %w[fast verify audit].each { assert_includes content, "run: bundle exec quality_gate #{_1}" }
+    end
 
     def run_installer(root, options)
       Installer.new(destination_root: root, options:, stdout: StringIO.new).call

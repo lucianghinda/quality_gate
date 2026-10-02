@@ -359,6 +359,7 @@ module QualityGate
             --test-command COMMAND  Override the test command
             --skip-coverage         Omit coverage and Undercover setup
             --agents                Install optional agent hooks and contracts
+            --ci                    Generate an optional GitHub Actions workflow
             --pretend               Preview changes without writing them
             -h, --help              Show this help
 
@@ -430,6 +431,7 @@ module QualityGate
       def registry
         {
           "reek" => QualityGate::Adapters::Reek,
+          "herb" => QualityGate::Adapters::Herb,
           "rubocop" => QualityGate::Adapters::RuboCop,
           "simplecov" => QualityGate::Adapters::SimpleCov,
           "test_suite" => QualityGate::Adapters::TestSuite,

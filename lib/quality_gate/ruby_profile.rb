@@ -42,8 +42,8 @@ module QualityGate
       raise ArgumentError, "#{name} must stay inside the project"
     end
 
-    def command(value, framework)
-      command = value.nil? ? DEFAULT_COMMANDS.fetch(framework) : parse_command(value)
+    def command(value, framework, defaults: DEFAULT_COMMANDS)
+      command = value.nil? ? defaults.fetch(framework) : parse_command(value)
       validate_command!(command)
       command.map(&:dup).freeze
     end
@@ -165,6 +165,125 @@ module QualityGate
 
       raise ArgumentError,
             "test helper #{relative.inspect} does not exist; pass --skip-coverage or provide an existing helper"
+    end
+  end
+
+  # Resolves the Rails test helper and command while sharing the Ruby profile's
+  # validation for project-relative paths and shell-free argv.
+  class RailsProfile
+    DEFAULT_HELPERS = {
+      "minitest" => "test/test_helper.rb",
+      "rspec" => "spec/rails_helper.rb"
+    }.freeze
+    DEFAULT_COMMANDS = {
+      "minitest" => %w[bin/rails test].freeze,
+      "rspec" => %w[bundle exec rspec].freeze
+    }.freeze
+    TEMPLATE_MAP = { "quality_gate.yml.tt" => "rails_quality_gate.yml.tt" }.freeze
+    SUPPORTED_FRAMEWORKS = DEFAULT_HELPERS.keys.freeze
+
+    attr_reader :destination_root, :framework, :test_helper, :test_command
+
+    def initialize(destination_root:, options: {})
+      @destination_root = RubyProfileSupport.destination_root(destination_root)
+      @options = RubyProfileSupport.options(options)
+      resolve_settings
+    end
+
+    def coverage? = @coverage
+
+    def missing_default_helper? = !!@missing_default_helper
+
+    def template_for(name)
+      TEMPLATE_MAP.fetch(name, name)
+    end
+
+    private
+
+    attr_reader :options
+
+    def resolve_settings
+      @coverage = !option(:skip_coverage)
+      @framework = resolve_framework
+      @test_helper = resolve_test_helper
+      @test_command = RubyProfileSupport.command(option(:test_command), framework, defaults: DEFAULT_COMMANDS)
+    end
+
+    def option(key)
+      options.fetch(key, nil)
+    end
+
+    def resolve_framework
+      explicit = option(:test_framework)
+      return validate_framework(explicit) if explicit
+
+      helper = option(:test_helper)
+      return framework_for_helper(helper) if helper
+
+      detected_framework
+    end
+
+    def detected_framework
+      available = DEFAULT_HELPERS.select { |_name, path| helper_present?(path) }.keys
+      return available.first if available.one?
+
+      return missing_default_framework if available.empty?
+
+      raise ArgumentError, "both test helpers exist; pass --test-framework minitest or rspec"
+    end
+
+    def missing_default_framework
+      @missing_default_helper = true
+      "minitest"
+    end
+
+    def validate_framework(value)
+      selected = value.to_s
+      return selected if SUPPORTED_FRAMEWORKS.include?(selected)
+
+      raise ArgumentError, "test_framework must be minitest or rspec"
+    end
+
+    def framework_for_helper(value)
+      relative = RubyProfileSupport.relative_path(destination_root, value, "test_helper")
+      relative.start_with?("spec/") || relative == "spec" ? "rspec" : "minitest"
+    end
+
+    def resolve_test_helper
+      helper = option(:test_helper) || DEFAULT_HELPERS.fetch(framework)
+      relative = RubyProfileSupport.relative_path(destination_root, helper, "test_helper")
+      return relative unless coverage?
+
+      validate_test_helper!(relative)
+      relative
+    end
+
+    def validate_test_helper!(relative)
+      path = helper_path_without_symlinks(relative)
+      raise ArgumentError, "test_helper must not pass through symlinks" unless path
+      return if File.file?(path) || missing_default_helper?
+
+      raise ArgumentError,
+            "test helper #{relative.inspect} does not exist; pass --skip-coverage or provide an existing helper"
+    end
+
+    def helper_present?(helper)
+      path = helper_path_without_symlinks(helper)
+      path && File.file?(path)
+    end
+
+    def helper_path_without_symlinks(helper)
+      return if symlink_in_path?(helper)
+
+      File.join(destination_root, helper)
+    end
+
+    def symlink_in_path?(helper)
+      path = destination_root
+      helper.split(File::SEPARATOR).any? do |component|
+        path = File.join(path, component)
+        File.symlink?(path)
+      end
     end
   end
 end

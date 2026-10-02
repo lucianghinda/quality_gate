@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "../../../quality_gate/installation"
+require_relative "../../../quality_gate/ruby_profile"
 
 if defined?(Rails::Generators::Base)
   module QualityGate
@@ -32,15 +33,24 @@ if defined?(Rails::Generators::Base)
       class_option :skip_initializers, type: :boolean, default: false
       class_option :skip_coverage, type: :boolean, default: false
       class_option :agents, type: :boolean, default: false
+      class_option :test_framework, type: :string
+      class_option :test_helper, type: :string
+      class_option :test_command, type: :string
+      class_option :ci, type: :boolean, default: false
 
       # Rails discovers generator tasks from methods declared on this class.
       # Keep these forwarding methods so the shared module remains framework-neutral.
       # rubocop:disable Lint/UselessMethodDefinition
-      def create_settings_file = super
+      def create_settings_file
+        profile if behavior == :invoke
+        super
+      end
+
       def create_rules_file = super
       def create_initializers = super
       def inject_coverage = super
       def create_agent_integration = super
+      def create_ci_workflow = super
       def print_summary = super
       # rubocop:enable Lint/UselessMethodDefinition
 
@@ -55,11 +65,15 @@ if defined?(Rails::Generators::Base)
       end
 
       def template_for(name)
-        name
+        @profile ? @profile.template_for(name) : name
       end
 
       def test_helper_path
-        "test/test_helper.rb"
+        profile.test_helper
+      end
+
+      def profile
+        @profile ||= RailsProfile.new(destination_root:, options:)
       end
     end
   end
