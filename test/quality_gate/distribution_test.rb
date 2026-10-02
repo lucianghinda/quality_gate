@@ -59,6 +59,15 @@ module QualityGate
     lib/generators/quality_gate/install/templates/strong_migrations.rb.tt
     lib/quality_gate/hook_log.rb
     lib/quality_gate/init_command.rb
+    lib/quality_gate/doctor.rb
+    lib/quality_gate/doctor_report.rb
+    lib/quality_gate/doctor_command.rb
+    lib/quality_gate/doctor_git.rb
+    lib/quality_gate/doctor_coverage.rb
+    lib/quality_gate/doctor_hooks.rb
+    lib/quality_gate/doctor_launchers.rb
+    lib/quality_gate/doctor_bounded_file.rb
+    lib/quality_gate/doctor_path_lookup.rb
     lib/quality_gate/installation.rb
     lib/quality_gate/installer.rb
     lib/quality_gate/ruby_profile.rb
@@ -80,6 +89,7 @@ module QualityGate
     lib/quality_gate/reporters/text.rb
     lib/quality_gate/reporters/markdown.rb
     lib/quality_gate/reporters/json.rb
+    lib/quality_gate/reporters/doctor.rb
     sig/quality_gate.rbs
   ].freeze
 

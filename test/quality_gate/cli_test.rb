@@ -8,7 +8,8 @@ require "tmpdir"
 module QualityGate
   class CLITest < Minitest::Test
     def test_subcommands_are_exact_and_frozen
-      assert_equal %w[fast verify audit version init], CLI::SUBCOMMANDS
+      assert_equal %w[fast verify audit version init doctor], CLI::SUBCOMMANDS
+      assert_equal %w[fast verify audit], CLI::GATE_SUBCOMMANDS
       assert_predicate CLI::SUBCOMMANDS, :frozen?
     end
 
@@ -65,6 +66,20 @@ module QualityGate
         assert_includes stdout, "1  Checks completed with findings"
         assert_includes stdout, "2  Quality Gate could not complete"
         assert_includes stdout, "init      Install a plain Ruby project configuration"
+        assert_includes stdout, "doctor    Inspect bounded preflight readiness without running gates"
+      end
+    end
+
+    def test_doctor_help_is_successful_and_does_not_load_config
+      in_directory_with_config("gates: [fast\n") do |dir|
+        status, stdout, stderr = run_cli(%w[doctor --help], dir: dir)
+
+        assert_equal ExitCode::CLEAN, status
+        assert_empty stderr
+        assert_includes stdout, "Usage: quality_gate doctor"
+        assert_includes stdout, "--format"
+        assert_includes stdout, "Read-only preflight"
+        assert_includes stdout, "Exit status: 0 ready"
       end
     end
 
@@ -1698,7 +1713,7 @@ module QualityGate
       assert_equal ExitCode::TOOL_FAILURE, status
       assert_empty stdout
       assert_equal 2, stderr.lines.length
-      assert_equal "Usage: quality_gate <fast|verify|audit|version|init> [options]\n", stderr.lines.last
+      assert_equal "Usage: quality_gate <fast|verify|audit|version|init|doctor> [options]\n", stderr.lines.last
       assert_includes stderr.lines.first, "xml"
       refute_match(/[\u0000-\u001F\u007F]/, stderr.lines.first.chomp)
     end
@@ -1723,7 +1738,7 @@ module QualityGate
       assert_empty stdout
       assert_equal [
         "Error: invalid argument: --format xml middle end\n",
-        "Usage: quality_gate <fast|verify|audit|version|init> [options]\n"
+        "Usage: quality_gate <fast|verify|audit|version|init|doctor> [options]\n"
       ], stderr.lines
     end
 

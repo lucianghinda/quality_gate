@@ -1,3 +1,7 @@
+## [Unreleased]
+
+- Add `quality_gate doctor` for read-only setup preflight checks with text or JSON output.
+
 ## [0.2.3] - 2026-10-02
 
 - Reek scans the project when a bare gate invocation has no selected paths.
