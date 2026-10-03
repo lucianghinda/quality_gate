@@ -33,6 +33,7 @@ if defined?(Rails::Generators::Base)
       class_option :skip_initializers, type: :boolean, default: false
       class_option :skip_coverage, type: :boolean, default: false
       class_option :agents, type: :boolean, default: false
+      class_option :codex, type: :boolean, default: false
       class_option :test_framework, type: :string
       class_option :test_helper, type: :string
       class_option :test_command, type: :string

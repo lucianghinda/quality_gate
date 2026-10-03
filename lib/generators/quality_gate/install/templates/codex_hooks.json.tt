@@ -1,0 +1,1 @@
+<%= JSON.pretty_generate("hooks" => {"Stop" => [{"hooks" => [{"type" => "command", "command" => Shellwords.join(["ruby", File.expand_path(File.join(destination_root, ".codex/hooks/quality_gate_verify_stop.rb"))]), "timeout" => 600}]}]}) %>

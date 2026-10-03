@@ -15,6 +15,7 @@ module QualityGate
       test_helper
       test_command
       agents
+      codex
       ci
       pretend
       skip_coverage

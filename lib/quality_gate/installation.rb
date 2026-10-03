@@ -2,7 +2,9 @@
 
 require "erb"
 require "fileutils"
+require "json"
 require "pathname"
+require "shellwords"
 require "tempfile"
 
 module QualityGate
@@ -18,6 +20,8 @@ module QualityGate
       .claude/settings.json
       CLAUDE.md
       AGENTS.md
+      .codex/hooks.json
+      .codex/hooks/quality_gate_verify_stop.rb
     ].freeze
     MARKER_START = "# quality_gate coverage — start"
     MARKER_END = "# quality_gate coverage — end"
@@ -27,7 +31,9 @@ module QualityGate
     AGENT_TEMPLATE_PATHS = {
       ".claude/hooks/quality_gate_fast.rb" => "quality_gate_fast.rb.tt",
       ".claude/hooks/quality_gate_verify_stop.rb" => "quality_gate_verify_stop.rb.tt",
-      ".claude/settings.json" => "claude_settings.json.tt"
+      ".claude/settings.json" => "claude_settings.json.tt",
+      ".codex/hooks.json" => "codex_hooks.json.tt",
+      ".codex/hooks/quality_gate_verify_stop.rb" => "codex_verify_stop.rb.tt"
     }.freeze
     AGENT_CONTRACT_PATHS = %w[CLAUDE.md AGENTS.md].freeze
     PRIOR_CLAUDE_SETTINGS = [
@@ -232,19 +238,13 @@ module QualityGate
     def create_agent_integration
       return unless invoke_behavior?
 
-      unless options[:agents]
-        record(:skipped, "agent integration (pass --agents to install Claude hooks and contracts)")
+      unless options[:agents] || options[:codex]
+        record(:skipped, "agent integration (pass --agents for Claude hooks or --codex for Codex Stop verification)")
         return
       end
 
-      install_template("quality_gate_fast.rb.tt", ".claude/hooks/quality_gate_fast.rb", mode: HOOK_MODE)
-      install_template(
-        "quality_gate_verify_stop.rb.tt",
-        ".claude/hooks/quality_gate_verify_stop.rb",
-        mode: HOOK_MODE
-      )
-      install_template("claude_settings.json.tt", ".claude/settings.json")
-      install_agent_contract("CLAUDE.md")
+      install_claude_integration if options[:agents]
+      install_codex_integration if options[:codex]
       install_agent_contract("AGENTS.md")
     end
 
@@ -267,8 +267,28 @@ module QualityGate
 
     private
 
+    def install_claude_integration
+      install_template("quality_gate_fast.rb.tt", ".claude/hooks/quality_gate_fast.rb", mode: HOOK_MODE)
+      install_template(
+        "quality_gate_verify_stop.rb.tt",
+        ".claude/hooks/quality_gate_verify_stop.rb",
+        mode: HOOK_MODE
+      )
+      install_template("claude_settings.json.tt", ".claude/settings.json")
+      install_agent_contract("CLAUDE.md")
+    end
+
+    def install_codex_integration
+      install_template("codex_hooks.json.tt", ".codex/hooks.json")
+      install_template("codex_verify_stop.rb.tt", ".codex/hooks/quality_gate_verify_stop.rb", mode: HOOK_MODE)
+    end
+
     def invoke_behavior?
       behavior == :invoke
+    end
+
+    def agent_option?(name)
+      options.fetch(name, options.fetch(name.to_s, false))
     end
 
     def print_unsupported_behavior

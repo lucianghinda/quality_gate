@@ -39,10 +39,11 @@ module QualityGate
       CLAUDE.md
       AGENTS.md
     ].freeze
+    CODEX_FILES = %w[.codex/hooks.json .codex/hooks/quality_gate_verify_stop.rb].freeze
 
     def test_exposes_the_managed_paths_and_coverage_markers
       assert InstallGenerator.const_defined?(:FILES, false)
-      assert_equal MANAGED_FILES + AGENT_FILES, InstallGenerator::FILES
+      assert_equal MANAGED_FILES + AGENT_FILES + CODEX_FILES, InstallGenerator::FILES
       assert_predicate InstallGenerator::FILES, :frozen?
       assert_equal "# quality_gate coverage — start", InstallGenerator::MARKER_START
       assert_predicate InstallGenerator::MARKER_START, :frozen?
@@ -58,6 +59,7 @@ module QualityGate
 
         assert_empty stderr
         MANAGED_FILES.each { assert_path_exists File.join(host, _1) }
+        refute_path_exists File.join(host, ".codex")
         settings = Config.load(dir: host)
         assert_equal %w[bin/rails test], settings.fetch(:commands).dig(:verify, :test_suite)
         assert_equal expected_template("rubocop.yml.tt"), read(host, ".rubocop.yml")
@@ -143,7 +145,7 @@ module QualityGate
           AGENTS.md
         ].each { refute_path_exists File.join(host, _1) }
         assert_includes summary_entries(stdout, "Skipped"),
-                        "agent integration (pass --agents to install Claude hooks and contracts)"
+                        "agent integration (pass --agents for Claude hooks or --codex for Codex Stop verification)"
       end
     end
 
@@ -307,7 +309,7 @@ module QualityGate
         after = agent_files.to_h { |relative_path, _content| [relative_path, read(host, relative_path)] }
         assert_equal before, after
         assert_includes summary_entries(stdout, "Skipped"),
-                        "agent integration (pass --agents to install Claude hooks and contracts)"
+                        "agent integration (pass --agents for Claude hooks or --codex for Codex Stop verification)"
       end
     end
 
@@ -603,7 +605,7 @@ module QualityGate
         assert_equal before, tree_snapshot(host)
         assert_empty summary_entries(stdout, "Written")
         assert_equal [*MANAGED_FILES.map { "#{_1} (pretend)" },
-                      "agent integration (pass --agents to install Claude hooks and contracts)"],
+                      "agent integration (pass --agents for Claude hooks or --codex for Codex Stop verification)"],
                      summary_entries(stdout, "Skipped")
         assert_equal "Next: bundle exec quality_gate fast", stdout.lines.last.chomp
       end
@@ -642,7 +644,7 @@ module QualityGate
         assert_equal MANAGED_FILES - ["test/test_helper.rb"], summary_entries(stdout, "Written")
         assert_equal [
           "test/test_helper.rb (missing; Minitest coverage wiring skipped)",
-          "agent integration (pass --agents to install Claude hooks and contracts)"
+          "agent integration (pass --agents for Claude hooks or --codex for Codex Stop verification)"
         ], summary_entries(stdout, "Skipped")
         warning = %r{Warning: Minitest coverage wiring skipped; test/test_helper\.rb is missing\.}
         assert_equal 1, stdout.scan(warning).length
