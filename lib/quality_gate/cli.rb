@@ -474,7 +474,8 @@ module QualityGate
             --test-helper PATH      Use a custom test helper
             --test-command COMMAND  Override the test command
             --skip-coverage         Omit coverage and Undercover setup
-            --agents                Install optional agent hooks and contracts
+            --agents                Install optional Claude Code hooks and contracts
+            --codex                 Install optional native Codex Stop verification
             --ci                    Generate an optional GitHub Actions workflow
             --pretend               Preview changes without writing them
             -h, --help              Show this help
@@ -484,6 +485,7 @@ module QualityGate
           Examples:
             quality_gate init
             quality_gate init --test-framework rspec
+            quality_gate init --codex
             quality_gate init --pretend
         TEXT
       end

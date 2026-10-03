@@ -80,6 +80,7 @@ module QualityGate
       assert_equal({ "type" => "boolean", "default" => false }, result.dig("options", "skip_initializers"))
       assert_equal({ "type" => "boolean", "default" => false }, result.dig("options", "skip_coverage"))
       assert_equal({ "type" => "boolean", "default" => false }, result.dig("options", "agents"))
+      assert_equal({ "type" => "boolean", "default" => false }, result.dig("options", "codex"))
       assert_equal({ "type" => "boolean", "default" => false }, result.dig("options", "ci"))
       assert_equal({ "type" => "string", "default" => nil }, result.dig("options", "test_framework"))
       assert_equal({ "type" => "string", "default" => nil }, result.dig("options", "test_helper"))
@@ -101,7 +102,7 @@ module QualityGate
         application = Class.new(Rails::Application).instance
         application.load_generators
         generator = QualityGate::InstallGenerator
-        options = %i[skip_initializers skip_coverage agents ci test_framework test_helper test_command].to_h do |name|
+        options = %i[skip_initializers skip_coverage agents codex ci test_framework test_helper test_command].to_h do |name|
           option = generator.class_options.fetch(name)
           [name, { type: option.type, default: option.default }]
         end

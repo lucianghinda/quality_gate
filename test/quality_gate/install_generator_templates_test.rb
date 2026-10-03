@@ -257,7 +257,7 @@ module QualityGate
     # rubocop:enable Metrics/BlockLength
 
     def test_agents_section_template_contains_the_agent_contract_markers_commands_and_exit_codes
-      with_rendered_template("agents_section.md.tt") do |content, destination_root|
+      with_rendered_template("agents_section.md.tt", options: { "agents" => true }) do |content, destination_root|
         assert_includes content, "<!-- quality_gate agent contract — start -->"
         assert_includes content, "<!-- quality_gate agent contract — end -->"
         QUALITY_GATE_COMMANDS.each { assert_includes content, _1 }
@@ -277,9 +277,9 @@ module QualityGate
 
     private
 
-    def with_rendered_template(template_name)
+    def with_rendered_template(template_name, options: {})
       with_destination_root do |destination_root|
-        yield render_template(template_name, destination_root), destination_root
+        yield render_template(template_name, destination_root, options:), destination_root
       end
     end
 
@@ -287,12 +287,12 @@ module QualityGate
       Dir.mktmpdir("quality-gate-generator", &)
     end
 
-    def render_template(template_name, destination_root)
+    def render_template(template_name, destination_root, options: {})
       source = File.join(InstallGenerator.source_root, template_name)
       assert File.file?(source), "expected generator template at #{source}"
 
       destination = File.join("rendered", template_name.delete_suffix(".tt"))
-      generator = InstallGenerator.new([], {}, destination_root: destination_root)
+      generator = InstallGenerator.new([], options, destination_root: destination_root)
       generator.template(template_name, destination, verbose: false)
       File.read(File.join(destination_root, destination))
     end

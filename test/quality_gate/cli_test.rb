@@ -334,7 +334,7 @@ module QualityGate
 
           assert_equal ExitCode::CLEAN, status
           assert_equal [{ destination_root: dir, options: {
-            profile: "ruby", skip_coverage: false, agents: false, pretend: false, ci: false
+            profile: "ruby", skip_coverage: false, agents: false, codex: false, pretend: false, ci: false
           }, stdout: stdout_io }], FakeInstaller.calls
           assert_empty stderr
         end
@@ -346,7 +346,7 @@ module QualityGate
         Dir.mktmpdir do |dir|
           status, _stdout, stderr, stdout_io = run_cli(
             ["init", "--profile", "ruby", "--test-framework", "rspec", "--test-helper", "spec/spec_helper.rb",
-             "--test-command", "bundle exec rspec", "--skip-coverage", "--agents", "--ci", "--pretend"],
+             "--test-command", "bundle exec rspec", "--skip-coverage", "--agents", "--codex", "--ci", "--pretend"],
             dir: dir
           )
 
@@ -358,6 +358,7 @@ module QualityGate
           assert_equal "bundle exec rspec", options.fetch(:test_command)
           assert options.fetch(:skip_coverage)
           assert options.fetch(:agents)
+          assert options.fetch(:codex)
           assert options.fetch(:ci)
           assert options.fetch(:pretend)
           assert_same stdout_io, FakeInstaller.calls.fetch(0).fetch(:stdout)
@@ -426,6 +427,7 @@ module QualityGate
         assert_equal ExitCode::CLEAN, status
         assert_includes stdout, "--test-framework NAME"
         assert_includes stdout, "--skip-coverage"
+        assert_includes stdout, "--codex"
         assert_includes stdout, "--ci"
         assert_empty stderr
       end

@@ -6,10 +6,15 @@ require_relative "doctor_report"
 module QualityGate
   # Summarizes recent automatic-hook history as historical evidence only.
   class DoctorHooks
-    HOOK_PATHS = %w[
+    CLAUDE_HOOK_PATHS = %w[
       .claude/hooks/quality_gate_fast.rb
       .claude/hooks/quality_gate_verify_stop.rb
     ].map!(&:freeze).freeze
+    CODEX_HOOK_PATHS = %w[
+      .codex/hooks.json
+      .codex/hooks/quality_gate_verify_stop.rb
+    ].map!(&:freeze).freeze
+    HOOK_PATHS = (CLAUDE_HOOK_PATHS + CODEX_HOOK_PATHS).freeze
     INSTALLED_HOOKS_MESSAGE = "Installed hooks have no history; run a hooked edit and inspect feedback."
     NO_INSTALLED_HOOKS_MESSAGE = "No hook history or installed hook files were found; " \
       "automatic feedback was not checked."
@@ -38,9 +43,20 @@ module QualityGate
     end
 
     def missing_history
-      return [check("hooks", "unchecked", INSTALLED_HOOKS_MESSAGE)] if installed_hooks?
+      return [check("hooks", "unchecked", missing_installed_history_message)] if installed_hooks?
 
       [check("hooks", "not_applicable", NO_INSTALLED_HOOKS_MESSAGE)]
+    end
+
+    def missing_installed_history_message
+      return INSTALLED_HOOKS_MESSAGE unless installed_codex_hook?
+
+      "Codex hook files are present, but Codex execution history and /hooks trust review are unchecked. " \
+        "Run a Codex Stop and review the hook in /hooks."
+    end
+
+    def installed_codex_hook?
+      CODEX_HOOK_PATHS.any? { File.exist?(File.join(@dir, _1)) || File.symlink?(File.join(@dir, _1)) }
     end
 
     def unreadable_history(status)

@@ -21,6 +21,7 @@ module QualityGate
       CLAUDE.md
       AGENTS.md
     ].freeze
+    CODEX_FILES = %w[.codex/hooks.json .codex/hooks/quality_gate_verify_stop.rb].freeze
     MANAGED_FILES = [
       ".quality_gate.yml",
       ".rubocop.yml",
@@ -59,7 +60,7 @@ module QualityGate
     ].freeze
 
     def test_exposes_the_agent_managed_paths_and_ordered_public_step
-      assert_equal MANAGED_FILES, InstallGenerator::FILES
+      assert_equal MANAGED_FILES + CODEX_FILES, InstallGenerator::FILES
       assert_equal GENERATOR_TASKS, InstallGenerator.tasks.keys
     end
 
@@ -2051,7 +2052,8 @@ module QualityGate
     end
 
     def expected_template(name)
-      InstallGenerator.new.send(:rendered_template, name)
+      options = name.end_with?("agents_section.md.tt") ? { "agents" => true } : {}
+      InstallGenerator.new([], options).send(:rendered_template, name)
     end
 
     def read(host, relative_path)

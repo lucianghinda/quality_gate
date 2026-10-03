@@ -1,7 +1,7 @@
 module QualityGate
   interface _BaselineMatch
-    attr_reader findings: Array[Finding]
-    attr_reader accepted: Array[Finding]
+    def findings: () -> Array[Finding]
+    def accepted: () -> Array[Finding]
   end
 
   VERSION: String
@@ -234,6 +234,11 @@ module QualityGate
     SUBCOMMANDS: Array[String]
 
     def self.run: (Array[String] argv, ?stdout: _Output, ?stderr: _Output, ?dir: String) -> (0 | 1 | 2)
+  end
+
+  class CodexStopHook
+    def initialize: (dir: String) -> void
+    def call: (untyped input) -> Hash[String, String]
   end
 
   class Doctor
