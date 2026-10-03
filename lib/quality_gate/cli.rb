@@ -475,7 +475,7 @@ module QualityGate
             --test-command COMMAND  Override the test command
             --skip-coverage         Omit coverage and Undercover setup
             --agents                Install optional Claude Code hooks and contracts
-            --codex                 Install optional native Codex Stop verification
+            --codex                 Install optional Codex patch feedback and Stop verification
             --ci                    Generate an optional GitHub Actions workflow
             --pretend               Preview changes without writing them
             -h, --help              Show this help

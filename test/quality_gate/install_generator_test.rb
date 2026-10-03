@@ -39,7 +39,13 @@ module QualityGate
       CLAUDE.md
       AGENTS.md
     ].freeze
-    CODEX_FILES = %w[.codex/hooks.json .codex/hooks/quality_gate_verify_stop.rb].freeze
+    CODEX_FILES = %w[
+      .codex/hooks.json
+      .codex/hooks/quality_gate_fast.rb
+      .codex/hooks/quality_gate_verify_stop.rb
+    ].freeze
+    AGENT_OPT_IN_HINT = "agent integration (pass --agents for Claude hooks or " \
+      "--codex for Codex patch feedback and Stop verification)"
 
     def test_exposes_the_managed_paths_and_coverage_markers
       assert InstallGenerator.const_defined?(:FILES, false)
@@ -145,7 +151,7 @@ module QualityGate
           AGENTS.md
         ].each { refute_path_exists File.join(host, _1) }
         assert_includes summary_entries(stdout, "Skipped"),
-                        "agent integration (pass --agents for Claude hooks or --codex for Codex Stop verification)"
+                        AGENT_OPT_IN_HINT
       end
     end
 
@@ -309,7 +315,7 @@ module QualityGate
         after = agent_files.to_h { |relative_path, _content| [relative_path, read(host, relative_path)] }
         assert_equal before, after
         assert_includes summary_entries(stdout, "Skipped"),
-                        "agent integration (pass --agents for Claude hooks or --codex for Codex Stop verification)"
+                        AGENT_OPT_IN_HINT
       end
     end
 
@@ -605,7 +611,7 @@ module QualityGate
         assert_equal before, tree_snapshot(host)
         assert_empty summary_entries(stdout, "Written")
         assert_equal [*MANAGED_FILES.map { "#{_1} (pretend)" },
-                      "agent integration (pass --agents for Claude hooks or --codex for Codex Stop verification)"],
+                      AGENT_OPT_IN_HINT],
                      summary_entries(stdout, "Skipped")
         assert_equal "Next: bundle exec quality_gate fast", stdout.lines.last.chomp
       end
@@ -644,7 +650,7 @@ module QualityGate
         assert_equal MANAGED_FILES - ["test/test_helper.rb"], summary_entries(stdout, "Written")
         assert_equal [
           "test/test_helper.rb (missing; Minitest coverage wiring skipped)",
-          "agent integration (pass --agents for Claude hooks or --codex for Codex Stop verification)"
+          AGENT_OPT_IN_HINT
         ], summary_entries(stdout, "Skipped")
         warning = %r{Warning: Minitest coverage wiring skipped; test/test_helper\.rb is missing\.}
         assert_equal 1, stdout.scan(warning).length

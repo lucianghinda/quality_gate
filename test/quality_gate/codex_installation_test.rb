@@ -41,16 +41,16 @@ module QualityGate
       end
     end
 
-    def test_codex_installation_is_idempotent_and_repairs_script_mode
+    def test_codex_installation_is_idempotent_and_repairs_both_script_modes
       with_project do |root|
         assert_equal 0, run_installer(root, { codex: true })
         before = codex_snapshot(root)
-        script = File.join(root, ".codex/hooks/quality_gate_verify_stop.rb")
-        File.chmod(0o644, script)
+        scripts = codex_script_paths(root)
+        scripts.each { File.chmod(0o644, _1) }
 
         assert_equal 0, run_installer(root, { codex: true })
         assert_equal before, codex_snapshot(root)
-        assert_equal 0o755, File.stat(script).mode & 0o777
+        assert_codex_script_modes(scripts, 0o755)
       end
     end
 
@@ -61,6 +61,53 @@ module QualityGate
         assert_equal 0, status
         refute_path_exists File.join(root, ".codex")
         refute_path_exists File.join(root, "AGENTS.md")
+      end
+    end
+
+    def test_codex_installs_patch_fast_hook_with_native_post_tool_use_matcher
+      with_project do |root|
+        assert_equal 0, run_installer(root, { codex: true })
+        assert_codex_fast_hook_config(root)
+      end
+    end
+
+    def test_codex_installation_upgrades_only_exact_prior_stop_configuration_for_same_root
+      with_project do |root|
+        config = File.join(root, ".codex/hooks.json")
+        FileUtils.mkdir_p(File.dirname(config))
+        File.write(config, prior_codex_config(root))
+        File.chmod(0o600, config)
+
+        assert_equal 0, run_installer(root, { codex: true })
+        assert_prior_codex_config_upgraded(root, config)
+      end
+    end
+
+    def test_codex_installation_does_not_upgrade_prior_stop_configuration_from_another_root
+      with_project do |root|
+        config = File.join(root, ".codex/hooks.json")
+        FileUtils.mkdir_p(File.dirname(config))
+        File.write(config, prior_codex_config("/another/project"))
+        output = StringIO.new
+
+        status = run_installer(root, { codex: true }, stdout: output)
+
+        assert_equal 1, status
+        assert_equal prior_codex_config("/another/project"), File.read(config)
+        assert_includes output.string, "Use these lines manually for .codex/hooks.json"
+      end
+    end
+
+    def test_codex_pretend_keeps_exact_prior_stop_configuration_unchanged
+      with_project do |root|
+        config = File.join(root, ".codex/hooks.json")
+        FileUtils.mkdir_p(File.dirname(config))
+        previous = prior_codex_config(root)
+        File.write(config, previous)
+
+        assert_equal 0, run_installer(root, { codex: true, pretend: true })
+
+        assert_equal previous, File.read(config)
       end
     end
 
@@ -94,7 +141,11 @@ module QualityGate
     end
 
     def test_codex_file_symlinks_are_preserved_and_reported
-      %w[.codex/hooks.json .codex/hooks/quality_gate_verify_stop.rb].each do |path|
+      %w[
+        .codex/hooks.json
+        .codex/hooks/quality_gate_fast.rb
+        .codex/hooks/quality_gate_verify_stop.rb
+      ].each do |path|
         assert_codex_file_symlink(path)
       end
     end
@@ -136,7 +187,11 @@ module QualityGate
     end
 
     def test_doctor_marks_partial_codex_installation_unchecked
-      %w[.codex/hooks.json .codex/hooks/quality_gate_verify_stop.rb].each do |relative_path|
+      %w[
+        .codex/hooks.json
+        .codex/hooks/quality_gate_fast.rb
+        .codex/hooks/quality_gate_verify_stop.rb
+      ].each do |relative_path|
         with_project do |root|
           path = File.join(root, relative_path)
           FileUtils.mkdir_p(File.dirname(path))
@@ -148,6 +203,46 @@ module QualityGate
           assert_match(/history.*unchecked|unchecked.*history/i, report.fetch("message"))
           refute_match(/trusted|is active|active hook|ready|installed and working/i, report.fetch("message"))
         end
+      end
+    end
+
+    def test_codex_fast_script_symlink_is_preserved_and_reported
+      assert_codex_file_symlink(".codex/hooks/quality_gate_fast.rb")
+    end
+
+    def test_init_help_describes_codex_fast_patch_feedback
+      stdout = StringIO.new
+      stderr = StringIO.new
+
+      status = CLI.run(%w[init --help], stdout:, stderr:)
+
+      assert_equal 0, status
+      assert_empty stderr.string
+      assert_match(/--codex.*patch feedback.*Stop verification/i, stdout.string)
+    end
+
+    def test_docs_codex_describes_patch_fast_hook_constraints
+      codex = File.read(File.expand_path("../../docs/codex.md", __dir__))
+
+      %w[apply_patch Ruby ERB latency trust manual].each { assert_match(/#{_1}/i, codex) }
+      assert_match(/does not.*roll back|without.*rolling back|never roll.*back/i, codex)
+      assert_match(/shell writes.*Stop|Stop.*shell writes/i, codex)
+      assert_match(/unavailable.*tell you.*manual/i, codex)
+      assert_match(/no.*history|history.*no/i, codex)
+      assert_match(/custom.*manual/i, codex)
+    end
+
+    def test_doctor_marks_partial_codex_fast_installation_unchecked
+      with_project do |root|
+        path = File.join(root, ".codex/hooks/quality_gate_fast.rb")
+        FileUtils.mkdir_p(File.dirname(path))
+        File.write(path, "# installed hook\n")
+
+        report = DoctorHooks.new(dir: root).call.fetch(0)
+
+        assert_equal "unchecked", report.fetch("status")
+        assert_match(/history.*unchecked|unchecked.*history/i, report.fetch("message"))
+        refute_match(/trusted|is active|active hook|ready|installed and working/i, report.fetch("message"))
       end
     end
 
@@ -183,7 +278,9 @@ module QualityGate
       assert_equal 1, contract.scan("quality_gate agent contract — start").length
       assert_includes contract, "Codex"
       assert_includes contract, "/hooks"
-      assert_includes contract, "after a Quality Gate upgrade that changes"
+      assert_includes contract, "quality_gate_fast.rb"
+      assert_includes contract, "shell writes"
+      assert_includes contract, "after a Quality Gate upgrade"
       refute_includes contract, "After `bundle install`"
     end
 
@@ -193,13 +290,14 @@ module QualityGate
         .claude/hooks/quality_gate_fast.rb
         .claude/hooks/quality_gate_verify_stop.rb
         .codex/hooks.json
+        .codex/hooks/quality_gate_fast.rb
         .codex/hooks/quality_gate_verify_stop.rb
         CLAUDE.md
       ].each { assert_path_exists File.join(root, _1) }
       contract = File.read(File.join(root, "AGENTS.md"))
       assert_equal 1, contract.scan("quality_gate agent contract — start").length
       assert_includes contract, "Installed Claude Code hooks"
-      assert_includes contract, "optional Codex Stop hook"
+      assert_includes contract, "optional Codex patch hook"
     end
 
     def assert_manual_codex_proposal(status:, output:, config:, root:)
@@ -215,11 +313,41 @@ module QualityGate
     def expected_codex_config(script)
       {
         "hooks" => {
+          "PostToolUse" => [
+            {
+              "matcher" => "^apply_patch$",
+              "hooks" => [
+                {
+                  "type" => "command",
+                  "command" => Shellwords.join(["ruby", File.join(File.dirname(script), "quality_gate_fast.rb")]),
+                  "timeout" => 30
+                }
+              ]
+            }
+          ],
           "Stop" => [
             { "hooks" => [{ "type" => "command", "command" => Shellwords.join(["ruby", script]), "timeout" => 600 }] }
           ]
         }
       }
+    end
+
+    def prior_codex_config(root)
+      JSON.pretty_generate(
+        "hooks" => {
+          "Stop" => [
+            {
+              "hooks" => [
+                {
+                  "type" => "command",
+                  "command" => Shellwords.join(["ruby", File.join(root, ".codex/hooks/quality_gate_verify_stop.rb")]),
+                  "timeout" => 600
+                }
+              ]
+            }
+          ]
+        }
+      ) << "\n"
     end
 
     def assert_codex_file_symlink(relative_path)
@@ -248,9 +376,47 @@ module QualityGate
     end
 
     def codex_snapshot(root)
-      %w[.codex/hooks.json .codex/hooks/quality_gate_verify_stop.rb AGENTS.md].to_h do |path|
+      %w[
+        .codex/hooks.json
+        .codex/hooks/quality_gate_fast.rb
+        .codex/hooks/quality_gate_verify_stop.rb
+        AGENTS.md
+      ].to_h do |path|
         [path, File.binread(File.join(root, path))]
       end
+    end
+
+    def codex_script_paths(root)
+      %w[quality_gate_fast.rb quality_gate_verify_stop.rb].map do |name|
+        File.join(root, ".codex/hooks", name)
+      end
+    end
+
+    def assert_codex_script_modes(paths, mode)
+      paths.each { assert_equal mode, File.stat(_1).mode & 0o777 }
+    end
+
+    def assert_codex_fast_hook_config(root)
+      relative_path = ".codex/hooks/quality_gate_fast.rb"
+      script = File.join(root, relative_path)
+      hook = codex_post_tool_use_hook(root)
+
+      assert_equal 0o755, File.stat(script).mode & 0o777
+      assert_equal "^apply_patch$", hook.fetch("matcher")
+      assert_equal [{ "type" => "command", "command" => Shellwords.join(["ruby", script]), "timeout" => 30 }],
+                   hook.fetch("hooks")
+    end
+
+    def codex_post_tool_use_hook(root)
+      JSON.parse(File.read(File.join(root, ".codex/hooks.json"))).fetch("hooks").fetch("PostToolUse").fetch(0)
+    end
+
+    def assert_prior_codex_config_upgraded(root, config)
+      script = File.join(root, ".codex/hooks/quality_gate_verify_stop.rb")
+
+      assert_equal expected_codex_config(script), JSON.parse(File.read(config))
+      assert_equal 0o600, File.stat(config).mode & 0o777
+      refute_equal prior_codex_config(root), File.read(config)
     end
 
     def with_project(name = "codex-install")

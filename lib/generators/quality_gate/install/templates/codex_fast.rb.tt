@@ -1,0 +1,36 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require "json"
+require "stringio"
+
+begin
+  root = File.expand_path("../..", __dir__)
+  Dir.chdir(root)
+  gemfile = File.join(root, "Gemfile")
+  ENV["BUNDLE_GEMFILE"] = gemfile
+  raise LoadError, "project Gemfile is missing" unless File.file?(gemfile)
+
+  original_stdout, original_stderr = $stdout, $stderr
+  $stdout = $stderr = StringIO.new
+  begin
+    require "bundler"
+    Bundler.setup
+  ensure
+    $stdout, $stderr = original_stdout, original_stderr
+  end
+  require "quality_gate"
+  require "quality_gate/codex_fast_hook"
+  input = JSON.parse(STDIN.read)
+  puts JSON.generate(QualityGate::CodexFastHook.new(dir: root).call(input))
+rescue StandardError, LoadError => error
+  message = "Quality Gate fast feedback unavailable (#{error.class}); " \
+            "run `bundle exec quality_gate fast` manually."
+  puts JSON.generate(
+    "systemMessage" => message,
+    "hookSpecificOutput" => {
+      "hookEventName" => "PostToolUse",
+      "additionalContext" => "Quality Gate fast feedback is unavailable. Run `bundle exec quality_gate fast` manually."
+    }
+  )
+end
