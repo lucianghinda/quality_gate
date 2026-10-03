@@ -21,7 +21,11 @@ module QualityGate
       CLAUDE.md
       AGENTS.md
     ].freeze
-    CODEX_FILES = %w[.codex/hooks.json .codex/hooks/quality_gate_verify_stop.rb].freeze
+    CODEX_FILES = %w[
+      .codex/hooks.json
+      .codex/hooks/quality_gate_fast.rb
+      .codex/hooks/quality_gate_verify_stop.rb
+    ].freeze
     MANAGED_FILES = [
       ".quality_gate.yml",
       ".rubocop.yml",

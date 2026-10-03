@@ -44,6 +44,9 @@ module QualityGate
     lib/generators/quality_gate/install/templates/agents_section.md.tt
     lib/generators/quality_gate/install/templates/bullet.rb.tt
     lib/generators/quality_gate/install/templates/claude_settings.json.tt
+    lib/generators/quality_gate/install/templates/codex_fast.rb.tt
+    lib/generators/quality_gate/install/templates/codex_hooks.json.tt
+    lib/generators/quality_gate/install/templates/codex_verify_stop.rb.tt
     lib/generators/quality_gate/install/templates/hook_log_filesystem.rb.tt
     lib/generators/quality_gate/install/templates/quality_gate.yml.tt
     lib/generators/quality_gate/install/templates/quality_gate_fast.rb.tt
@@ -70,6 +73,8 @@ module QualityGate
     lib/quality_gate/doctor_path_lookup.rb
     lib/quality_gate/installation.rb
     lib/quality_gate/installer.rb
+    lib/quality_gate/codex_fast_hook.rb
+    lib/quality_gate/codex_patch_files.rb
     lib/quality_gate/ruby_profile.rb
     lib/quality_gate/railtie.rb
     lib/quality_gate/rubocop.rb
@@ -359,6 +364,13 @@ module QualityGate
       assert_match(/fix findings before you continue/i, codex)
       assert_match(%r{log/quality_gate_hooks\.jsonl}i, codex)
       assert_match(%r{bin/rails generate quality_gate:install}i, codex)
+      assert_codex_patch_fast_documentation(codex)
+    end
+
+    def test_readme_distinguishes_claude_and_codex_fast_hook_triggers
+      readme = File.read(README)
+
+      assert_match(/Claude.*Edit.*Write.*Codex.*apply_patch/im, readme)
     end
 
     def test_rbs_describes_the_hook_log_reader_surface
@@ -530,6 +542,18 @@ module QualityGate
       assert_match(/marker-owned Quality Gate contract section.*AGENTS\.md/im, readme)
       assert_match(/stale.*block.*replaced|replaced.*stale.*block/im, readme)
       assert_match(/surrounding bytes preserved|preserve.*surrounding bytes/im, readme)
+    end
+
+    private
+
+    def assert_codex_patch_fast_documentation(codex)
+      assert_match(/PostToolUse.*apply_patch|apply_patch.*PostToolUse/im, codex)
+      assert_match(/30.second.*10.second|10.second.*30.second/i, codex)
+      assert_match(/no.*history|history.*no/i, codex)
+      assert_match(/shell writes.*Stop|Stop.*shell writes/i, codex)
+      assert_match(/custom.*manual/i, codex)
+      assert_match(/both.*command|command.*both/i, codex)
+      assert_match(/Claude.*Edit.*Write.*Codex.*apply_patch/im, codex)
     end
   end
 end

@@ -12,6 +12,7 @@ module QualityGate
     ].map!(&:freeze).freeze
     CODEX_HOOK_PATHS = %w[
       .codex/hooks.json
+      .codex/hooks/quality_gate_fast.rb
       .codex/hooks/quality_gate_verify_stop.rb
     ].map!(&:freeze).freeze
     HOOK_PATHS = (CLAUDE_HOOK_PATHS + CODEX_HOOK_PATHS).freeze

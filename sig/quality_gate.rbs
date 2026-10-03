@@ -241,6 +241,15 @@ module QualityGate
     def call: (untyped input) -> Hash[String, String]
   end
 
+  class CodexFastHook
+    def initialize: (dir: String) -> void
+    def call: (untyped input) -> Hash[String, untyped]
+  end
+
+  class CodexPatchFiles
+    def self.parse: (String patch) -> Array[String]
+  end
+
   class Doctor
     def initialize: (dir: String, registry: Hash[String, untyped]) -> void
     def call: () -> DoctorReport
