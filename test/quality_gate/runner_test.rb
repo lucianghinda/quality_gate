@@ -212,6 +212,29 @@ module QualityGate
       assert_equal updated.checks, preserved.checks
     end
 
+    def test_result_copies_and_freezes_baseline_metadata_through_with
+      accepted = build_finding(rule: "Accepted")
+      mode = String.new("compare")
+      metadata = {
+        mode:,
+        status: "applied",
+        accepted_findings: [accepted],
+        accepted_count: 1,
+        removed_count: 0,
+        written: false
+      }
+      result = Runner::Result.new(findings: [], baseline: metadata)
+      mode.replace("changed")
+      metadata[:accepted_findings] << build_finding(rule: "Later")
+
+      assert_equal "compare", result.baseline.fetch(:mode)
+      assert_equal ["Accepted"], result.baseline.fetch(:accepted_findings).map(&:rule)
+      assert result.baseline.frozen?
+      assert result.baseline.fetch(:accepted_findings).frozen?
+      assert_raises(FrozenError) { result.baseline[:mode].replace("changed") }
+      assert_equal result.baseline, result.with(findings: [build_finding(rule: "New")]).baseline
+    end
+
     def test_runner_records_one_check_per_adapter_with_scope_status_and_requested_files
       config = Config.new(Config.defaults.merge(files: ["lib/example.rb"]))
       adapters = [

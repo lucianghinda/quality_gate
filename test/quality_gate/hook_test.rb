@@ -132,6 +132,30 @@ module QualityGate
       end
     end
 
+    def test_baseline_report_uses_enforced_findings_while_ignoring_raw_check_status
+      with_workspace do |workspace|
+        file = ruby_file(workspace)
+        report = JSON.generate(
+          "checks" => [{ "tool" => "rubocop", "status" => "findings" }],
+          "findings" => [],
+          "summary" => { "findings" => 0, "tool_failures" => 0, "failed_tools" => [] },
+          "baseline" => { "mode" => "compare", "accepted_count" => 1 }
+        )
+
+        result = invoke_hook(
+          workspace,
+          hook_input(workspace, file),
+          "FAKE_EXIT" => "0",
+          "FAKE_STDOUT" => report
+        )
+
+        assert_predicate result.fetch(:status), :success?
+        assert_empty result.fetch(:stdout)
+        assert_empty result.fetch(:stderr)
+        assert_log_entry(workspace, file:, outcome: "clean")
+      end
+    end
+
     def test_valid_findings_result_returns_json_feedback_on_standard_error
       with_workspace do |workspace|
         file = ruby_file(workspace)

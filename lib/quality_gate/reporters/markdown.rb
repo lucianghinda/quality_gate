@@ -19,7 +19,17 @@ module QualityGate
       attr_reader :io
 
       def sections_for(result)
-        [summary_heading(result), checks_table(result.checks), findings_section(result.findings)].compact
+        [
+          summary_heading(result), baseline_section(result.baseline),
+          checks_table(result.checks), findings_section(result.findings)
+        ].compact
+      end
+
+      def baseline_section(baseline)
+        return unless baseline
+
+        "Baseline **#{baseline.fetch(:mode)}**: #{baseline.fetch(:status)}, " \
+          "#{baseline.fetch(:accepted_count)} accepted, #{baseline.fetch(:removed_count)} removed."
       end
 
       def summary_heading(result)

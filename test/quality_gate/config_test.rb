@@ -214,6 +214,21 @@ module QualityGate
   end
 
   class ConfigValidationTest < Minitest::Test
+    def test_baseline_mapping_accepts_only_fast_and_verify_non_empty_paths
+      Dir.mktmpdir do |dir|
+        File.write(
+          File.join(dir, ".quality_gate.yml"),
+          "baseline:\n  fast: config/fast.json\n  verify: config/verify.json\n"
+        )
+
+        assert_equal({ fast: "config/fast.json", verify: "config/verify.json" }, Config.load(dir: dir).fetch(:baseline))
+      end
+
+      assert_invalid_config("baseline: []\n", "baseline must map only fast and verify")
+      assert_invalid_config("baseline:\n  audit: config/audit.json\n", "baseline must map only fast and verify")
+      assert_invalid_config("baseline:\n  fast: ''\n", "baseline paths must be non-empty strings")
+    end
+
     def test_files_must_be_an_array_of_non_empty_strings
       assert_invalid_config("files: lib/example.rb\n", "files must be an array")
       assert_invalid_config("files:\n  -\n", "files entries must be non-empty strings")

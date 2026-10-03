@@ -53,6 +53,19 @@ module QualityGate
 
       private
 
+      def capture(*arguments, **options)
+        output = super(*arguments, **options)
+        validate_run!(output.last, output.fetch(1))
+        output
+      end
+
+      def validate_run!(status, stderr)
+        code = status.exitstatus
+        raise Error, "unsupported Reek exit status #{code || "unknown"}" unless [0, 2].include?(code)
+
+        raise Error, "source cannot be processed by Reek" if stderr.include?("cannot be processed by Reek")
+      end
+
       def existing_paths
         files.filter_map do |path|
           next unless File.exist?(path)

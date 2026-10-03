@@ -10,17 +10,25 @@ module QualityGate
 
       def call(result)
         print_checks(result.checks)
-
-        result.findings.each do |finding|
-          io.puts(render_finding(finding))
-        end
-
-        io.puts("#{result.findings.length} findings, #{result.failed_tools.length} tool failures")
+        print_baseline(result.baseline) if result.baseline
+        print_findings_and_summary(result)
       end
 
       private
 
       attr_reader :io
+
+      def print_findings_and_summary(result)
+        result.findings.each { |finding| io.puts(render_finding(finding)) }
+        io.puts("#{result.findings.length} findings, #{result.failed_tools.length} tool failures")
+      end
+
+      def print_baseline(baseline)
+        io.puts(
+          "Baseline #{baseline.fetch(:mode)}: #{baseline.fetch(:status)}, " \
+          "#{baseline.fetch(:accepted_count)} accepted, #{baseline.fetch(:removed_count)} removed"
+        )
+      end
 
       def print_checks(checks)
         return if checks.empty?

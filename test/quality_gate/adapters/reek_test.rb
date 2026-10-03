@@ -159,6 +159,37 @@ module QualityGate
         end
       end
 
+      def test_call_accepts_only_reek_clean_and_findings_statuses
+        [0, 2].each do |status|
+          assert_empty adapter_with_status(status).call
+        end
+      end
+
+      def test_call_rejects_reek_error_statuses_and_process_signals
+        [1, 3, 130, nil].each do |status|
+          finding = adapter_with_status(status).call.fetch(0)
+
+          assert finding.tool_failure?
+          assert_equal "reek", finding.tool
+        end
+      end
+
+      def test_call_rejects_source_processing_diagnostic_even_with_allowed_status
+        diagnostic = "Source 'broken.rb' cannot be processed by Reek due to a syntax error"
+
+        [0, 2].each do |status|
+          finding = adapter_with_status(status, stderr: diagnostic).call.fetch(0)
+
+          assert finding.tool_failure?
+          assert_equal "reek", finding.tool
+          assert_includes finding.message, "cannot be processed"
+        end
+      end
+
+      def test_call_preserves_ordinary_stderr_diagnostics_on_allowed_status
+        assert_empty adapter_with_status(0, stderr: "ordinary warning").call
+      end
+
       def test_parse_turns_recorded_smells_into_findings_with_context_prefixed_messages
         findings = build_adapter.parse(fixture("smells_report.json"))
 
@@ -195,6 +226,20 @@ module QualityGate
 
       def build_adapter(config: Config.new(Config.defaults), files: [])
         QualityGate::Adapters::Reek.new(config:, files:)
+      end
+
+      def adapter_with_status(status, stderr: "")
+        adapter = build_adapter
+        script = status_script(status, "[]", stderr)
+        adapter.define_singleton_method(:command) { [RbConfig.ruby, "-e", script] }
+        adapter
+      end
+
+      def status_script(status, output, error)
+        script = "STDOUT.write(#{output.inspect}); STDERR.write(#{error.inspect});"
+        return "#{script} Process.kill('TERM', Process.pid)" unless status
+
+        "#{script} exit #{status}"
       end
 
       def expected_findings

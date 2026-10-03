@@ -34,7 +34,8 @@ module QualityGate
       timeouts: { default: 120, rubocop: 10, test_suite: 120, undercover: 120 }.freeze,
       coverage: nil,
       compare_point: nil,
-      rubocop_config: nil
+      rubocop_config: nil,
+      baseline: {}.freeze
     }.freeze
     FORMATS = %w[text json markdown].map!(&:freeze).freeze
     ADAPTER_LAYERS = %i[fast verify audit deep].freeze
@@ -71,6 +72,7 @@ module QualityGate
         validate_document(document, path)
         overrides = symbolize_keys(document || {})
         validate_known_settings(overrides, path)
+        validate_baseline(overrides[:baseline], path) if overrides.key?(:baseline)
 
         new(
           deep_merge(DEFAULTS, known_overrides(overrides)),
@@ -220,6 +222,16 @@ module QualityGate
         return if rubocop_config.is_a?(String) && !rubocop_config.empty?
 
         fail ConfigError.new(path: path, cause_message: "rubocop_config must be nil or a non-empty String") # rubocop:disable Style/SignalException
+      end
+
+      def validate_baseline(baseline, path)
+        unless baseline.is_a?(Hash) && (baseline.keys - %i[fast verify]).empty?
+          raise ConfigError.new(path: path, cause_message: "baseline must map only fast and verify")
+        end
+
+        return if baseline.all? { |gate, file| %i[fast verify].include?(gate) && file.is_a?(String) && !file.empty? }
+
+        raise ConfigError.new(path: path, cause_message: "baseline paths must be non-empty strings")
       end
 
       def validate_document(document, path)
