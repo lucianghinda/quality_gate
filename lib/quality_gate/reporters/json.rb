@@ -19,7 +19,7 @@ module QualityGate
       attr_reader :io
 
       def payload_for(result)
-        {
+        payload = {
           "checks" => result.checks.map { serialize_check(_1) },
           "findings" => result.findings.map { serialize_finding(_1) },
           "summary" => {
@@ -27,6 +27,23 @@ module QualityGate
             "tool_failures" => result.failed_tools.length,
             "failed_tools" => result.failed_tools.map { FieldSanitizer.for_json(_1) }
           }
+        }
+        add_baseline(payload, result.baseline)
+      end
+
+      def add_baseline(payload, baseline)
+        payload["baseline"] = serialize_baseline(baseline) if baseline
+        payload
+      end
+
+      def serialize_baseline(baseline)
+        {
+          "mode" => baseline.fetch(:mode),
+          "status" => baseline.fetch(:status),
+          "accepted_count" => baseline.fetch(:accepted_count),
+          "removed_count" => baseline.fetch(:removed_count),
+          "written" => baseline.fetch(:written),
+          "accepted_findings" => baseline.fetch(:accepted_findings).map { serialize_finding(_1) }
         }
       end
 

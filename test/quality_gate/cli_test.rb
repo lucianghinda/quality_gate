@@ -99,6 +99,28 @@ module QualityGate
       end
     end
 
+    def test_audit_and_deep_help_omit_baseline_options_without_loading_config
+      in_directory_with_config("gates: [fast\n") do |dir|
+        %w[audit deep].each do |gate|
+          status, stdout, stderr = run_cli([gate, "--help"], dir: dir)
+
+          assert_equal ExitCode::CLEAN, status
+          assert_empty stderr
+          refute_match(/--(?:baseline|create-baseline|ratchet-baseline)/, stdout)
+        end
+      end
+    end
+
+    def test_fast_help_aligns_baseline_options
+      status, stdout, stderr = run_cli(%w[fast --help], dir: Dir.pwd)
+      baseline_lines = stdout.lines.grep(/--(?:baseline|create-baseline|ratchet-baseline)/)
+
+      assert_equal ExitCode::CLEAN, status
+      assert_empty stderr
+      assert_equal 3, baseline_lines.length
+      assert(baseline_lines.all? { _1.start_with?("  --") })
+    end
+
     def test_deep_help_explains_rubycritic_project_scope_and_manual_opt_in
       in_directory_with_config("format: invalid\n") do |dir|
         status, stdout, stderr = run_cli(%w[deep --help], dir: dir)
@@ -560,6 +582,30 @@ module QualityGate
         assert_includes stderr, "--files"
         assert_includes stderr, "path"
         refute_includes stderr, File.join(dir, ".quality_gate.yml")
+      end
+    end
+
+    def test_empty_baseline_option_fails_before_dispatch
+      Dir.mktmpdir do |dir|
+        RecordingCLI.reset
+        status, stdout, stderr = run_cli(["fast", "--baseline="], dir: dir, cli: RecordingCLI)
+
+        assert_equal ExitCode::TOOL_FAILURE, status
+        assert_empty stdout
+        assert_nil RecordingCLI.settings
+        assert_includes stderr, "--baseline="
+      end
+    end
+
+    def test_empty_baseline_path_fails_before_dispatch
+      Dir.mktmpdir do |dir|
+        RecordingCLI.reset
+        status, stdout, stderr = run_cli(["fast", "--baseline", ""], dir: dir, cli: RecordingCLI)
+
+        assert_equal ExitCode::TOOL_FAILURE, status
+        assert_empty stdout
+        assert_nil RecordingCLI.settings
+        assert_includes stderr, "baseline path must be non-empty"
       end
     end
 

@@ -205,6 +205,31 @@ module QualityGate
         end
       end
 
+      def test_call_rejects_exit_two_even_when_stdout_is_valid_empty_json
+        finding = adapter_with_status(2).call.fetch(0)
+
+        assert finding.tool_failure?
+        assert_equal "rubocop", finding.tool
+        assert_includes finding.message, "exit status 2"
+      end
+
+      def test_call_accepts_rubocop_statuses_zero_and_one
+        [0, 1].each do |status|
+          findings = adapter_with_status(status).call
+
+          assert_empty findings
+        end
+      end
+
+      def test_call_fails_for_other_or_missing_process_status
+        [3, 130, nil].each do |status|
+          finding = adapter_with_status(status).call.fetch(0)
+
+          assert finding.tool_failure?
+          assert_equal "rubocop", finding.tool
+        end
+      end
+
       def test_parse_turns_recorded_offenses_into_findings_with_cop_names
         findings = build_adapter.parse(fixture("offenses_report.json"))
 
@@ -282,6 +307,15 @@ module QualityGate
 
       def build_adapter(config: Config.new(Config.defaults), files: [])
         QualityGate::Adapters::RuboCop.new(config:, files:)
+      end
+
+      def adapter_with_status(status)
+        adapter = build_adapter
+        report = JSON.dump("files" => [])
+        action = status ? "exit #{status}" : "Process.kill('TERM', Process.pid)"
+        script = "puts #{report.inspect}; #{action}"
+        adapter.define_singleton_method(:command) { [RbConfig.ruby, "-e", script] }
+        adapter
       end
 
       def config_with(**settings)

@@ -99,6 +99,22 @@ module QualityGate
       end
     end
 
+    def test_baseline_report_uses_enforced_findings_while_ignoring_raw_check_status
+      with_workspace do |workspace|
+        report = JSON.generate(
+          "checks" => [{ "tool" => "reek", "status" => "findings" }],
+          "findings" => [],
+          "summary" => { "findings" => 0, "tool_failures" => 0, "failed_tools" => [] },
+          "baseline" => { "mode" => "compare", "accepted_count" => 1 }
+        )
+        result = invoke_hook(workspace, stop_input(workspace), "FAKE_BUNDLE_STDOUT" => report)
+
+        assert_success_without_output(result)
+        assert_equal expected_verify_invocations(workspace), invocations(workspace)
+        assert_stop_record(workspace, outcome: "verify_clean")
+      end
+    end
+
     def test_c3_dirty_ruby_with_findings_blocks_with_exact_json_on_stderr
       with_workspace do |workspace|
         report = findings_report

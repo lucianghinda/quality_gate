@@ -5,8 +5,22 @@ require "pathname"
 
 module QualityGate
   module Adapters
+    module RuboCopProcessStatus
+      private
+
+      def capture(*arguments, **options)
+        output = super(*arguments, **options)
+        code = output.last.exitstatus
+        raise Error, "unsupported RuboCop exit status #{code || "unknown"}" unless [0, 1].include?(code)
+
+        output
+      end
+    end
+    private_constant :RuboCopProcessStatus
+
     # Runs RuboCop with project-aware configuration and normalizes its JSON report.
     class RuboCop < Adapter
+      include RuboCopProcessStatus
       SEVERITY_MAP = {
         "info" => :info,
         "refactor" => :info,

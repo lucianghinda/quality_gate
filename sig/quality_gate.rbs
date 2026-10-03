@@ -1,4 +1,9 @@
 module QualityGate
+  interface _BaselineMatch
+    attr_reader findings: Array[Finding]
+    attr_reader accepted: Array[Finding]
+  end
+
   VERSION: String
 
   interface _Output
@@ -6,6 +11,22 @@ module QualityGate
   end
 
   class Error < StandardError
+  end
+
+  class BaselineError < Error
+  end
+
+  class Baseline
+    def self.capture: (gate: String, tools: Array[String], findings: Array[Finding], root: String) -> Baseline
+    def self.read: (String path) -> Baseline
+    def self.from_h: (Hash[String, untyped] document) -> Baseline
+
+    def initialize: (gate: String, tools: Array[String], entries: Array[Hash[String, untyped]]) -> void
+    def validate_context!: (gate: String, tools: Array[String]) -> Baseline
+    def match: (Array[Finding] findings, root: String) -> _BaselineMatch
+    def write: (String path, create: bool) -> Integer
+    def count: () -> Integer
+    def to_h: () -> Hash[String, untyped]
   end
 
   class ParseError < Error
@@ -201,9 +222,10 @@ module QualityGate
       attr_reader findings: Array[Finding]
       attr_reader failed_tools: Array[String]
       attr_reader checks: Array[Hash[Symbol, untyped]]
+      attr_reader baseline: Hash[Symbol, untyped]?
 
-      def initialize: (findings: Array[Finding], ?checks: Array[Hash[Symbol, untyped]]) -> void
-      def with: (?findings: Array[Finding], ?checks: Array[Hash[Symbol, untyped]]) -> Result
+      def initialize: (findings: Array[Finding], ?checks: Array[Hash[Symbol, untyped]], ?baseline: Hash[Symbol, untyped]?) -> void
+      def with: (?findings: Array[Finding], ?checks: Array[Hash[Symbol, untyped]], ?baseline: Hash[Symbol, untyped]?) -> Result
       def exit_code: () -> (0 | 1 | 2)
     end
   end

@@ -43,3 +43,6 @@
 #
 # # Explicit RuboCop config path; blank uses host config when present, otherwise the shipped config.
 # rubocop_config:
+
+# # Optional warning/info baseline for the fast and verify gates; leave empty to disable.
+# baseline: {}

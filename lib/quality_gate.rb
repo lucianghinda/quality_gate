@@ -14,6 +14,8 @@ module QualityGate
   # Your code goes here...
 end
 
+require_relative "quality_gate/baseline"
+require_relative "quality_gate/baseline_run"
 require_relative "quality_gate/adapter"
 require_relative "quality_gate/adapters/brakeman"
 require_relative "quality_gate/adapters/bundler_audit"

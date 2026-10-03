@@ -1,5 +1,8 @@
 ## [Unreleased]
 
+- Add opt-in fast/verify warning baselines with comparison, create, and shrink-only ratchet modes; protected findings and tool failures remain enforced.
+- Treat RuboCop process errors and Reek source-processing diagnostics as tool failures even when their JSON output is valid and empty.
+
 ## [0.3.0] - 2026-10-02
 
 - Add `quality_gate doctor` for read-only setup preflight checks with text or JSON output.

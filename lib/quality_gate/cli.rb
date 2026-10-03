@@ -93,6 +93,9 @@ module QualityGate
 
         settings = config.to_h.merge(overrides)
         validate_paths!(settings.fetch(:files), dir)
+        operation = baseline_operation(subcommand, settings, overrides, dir)
+        settings[:baseline_operation] = operation if operation
+        settings.delete(:baseline_option)
         validate_simplecov_configuration!(subcommand, settings, config.path || File.join(dir, ".quality_gate.yml"))
         dispatch(subcommand, settings, stdout: stdout, stderr: stderr)
       end
@@ -167,6 +170,7 @@ module QualityGate
 
       def option_parser(overrides)
         OptionParser.new.tap do |parser|
+          add_baseline_options(parser, overrides)
           parser.on("--files PATH") do |path|
             raise OptionParser::InvalidOption, "--files" if overrides.key?(:files)
 
@@ -175,6 +179,54 @@ module QualityGate
           parser.on("--format FORMAT", Config::FORMATS) { |format| overrides[:format] = format }
           parser.on("-h", "--help") { overrides[:help] = true }
         end
+      end
+
+      def add_baseline_options(parser, overrides)
+        parser.on("--baseline PATH") { |path| set_baseline_option(overrides, :compare, path) }
+        parser.on("--create-baseline PATH") { |path| set_baseline_option(overrides, :create, path) }
+        parser.on("--ratchet-baseline PATH") { |path| set_baseline_option(overrides, :ratchet, path) }
+      end
+
+      def set_baseline_option(overrides, mode, path)
+        raise OptionParser::InvalidOption, "baseline options are mutually exclusive" if overrides.key?(:baseline_option)
+        raise OptionParser::InvalidArgument, "baseline path must be non-empty" if path.empty?
+
+        overrides[:baseline_option] = { mode:, path: }
+      end
+
+      def baseline_operation(subcommand, settings, overrides, dir)
+        requested = overrides[:baseline_option]
+        return unless requested || settings.fetch(:baseline).key?(subcommand.to_sym)
+
+        validate_baseline_gate!(subcommand)
+        operation = requested || configured_baseline(settings, subcommand)
+        validate_baseline_scope!(operation, settings, overrides)
+        resolved_baseline(operation, dir)
+      end
+
+      def validate_baseline_gate!(subcommand)
+        return if %w[fast verify].include?(subcommand)
+
+        raise ArgumentError, "baselines are supported only for fast and verify"
+      end
+
+      def configured_baseline(settings, subcommand)
+        { mode: :compare, path: settings.fetch(:baseline).fetch(subcommand.to_sym) }
+      end
+
+      def validate_baseline_scope!(operation, settings, overrides)
+        return unless %i[create ratchet].include?(operation.fetch(:mode))
+        return unless overrides.key?(:files) || settings.fetch(:files).any?
+
+        raise ArgumentError, "baseline creation and ratcheting require the full configured file scope"
+      end
+
+      def resolved_baseline(operation, dir)
+        {
+          mode: operation.fetch(:mode),
+          path: File.expand_path(operation.fetch(:path), dir),
+          root: File.expand_path(dir)
+        }
       end
 
       def append_remaining_files(overrides, arguments)
@@ -210,6 +262,7 @@ module QualityGate
       end
 
       def dispatch(subcommand, settings, stdout:, stderr:)
+        operation = settings.delete(:baseline_operation)
         config = Config.new(settings)
         diagnostic_io = terminal_diagnostic_io(stderr)
         result = Runner.new(
@@ -217,6 +270,8 @@ module QualityGate
           config: config,
           diagnostic_io: diagnostic_io
         ).call
+
+        result = apply_baseline_operation(result, operation, subcommand, settings) if operation
 
         begin
           reporter_for(settings.fetch(:format), stdout: stdout).call(result)
@@ -226,6 +281,11 @@ module QualityGate
         end
 
         result.exit_code
+      end
+
+      def apply_baseline_operation(result, operation, subcommand, settings)
+        tools = settings.fetch(:adapters).fetch(subcommand.to_sym)
+        BaselineRun.new(operation:, gate: subcommand, tools:).call(result)
       end
 
       def adapters_for(subcommand, settings:, config:, diagnostic_io:)
@@ -304,6 +364,9 @@ module QualityGate
           Options:
             --files PATH [PATH ...]  Replace configured paths for this run; files and directories are allowed
             --format FORMAT         Choose text, json, or markdown output (also accepts --format=FORMAT)
+            --baseline PATH         Accept recorded warnings on fast/verify
+            --create-baseline PATH  Create a warning snapshot on fast/verify
+            --ratchet-baseline PATH Shrink a clean fast/verify snapshot
             -h, --help              Show this help
 
           Scope:
@@ -331,6 +394,8 @@ module QualityGate
         tools = GATE_TOOLS.fetch(gate).join(", ")
         return deep_gate_help_text(tools) if gate == "deep"
 
+        baseline_options = baseline_help_options(gate)
+
         <<~TEXT
           Usage: quality_gate #{gate} [options]
 
@@ -339,6 +404,7 @@ module QualityGate
           Options:
             --files PATH [PATH ...]  Replace configured paths for this run; files and directories are allowed
             --format FORMAT         Choose text, json, or markdown output (also accepts --format=FORMAT)
+            #{baseline_options.chomp}
             -h, --help              Show this help
 
           Scope:
@@ -356,6 +422,16 @@ module QualityGate
             1  Checks completed with findings
             2  Quality Gate could not complete (input, config, or tool failure)
         TEXT
+      end
+
+      def baseline_help_options(gate)
+        return "" unless %w[fast verify].include?(gate)
+
+        [
+          "--baseline PATH         Compare with a warning snapshot",
+          "  --create-baseline PATH  Create a warning snapshot",
+          "  --ratchet-baseline PATH Shrink a clean snapshot"
+        ].join("\n")
       end
 
       def deep_gate_help_text(tools)

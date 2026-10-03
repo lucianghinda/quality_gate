@@ -38,3 +38,8 @@ commands:
 #
 # # Explicit RuboCop config path; blank uses host config when present, otherwise the shipped config.
 # rubocop_config:
+
+# # Optional warning/info baseline for fast and verify; omitted means disabled.
+# baseline:
+#   fast: config/quality_gate-fast-baseline.json
+#   verify: config/quality_gate-verify-baseline.json

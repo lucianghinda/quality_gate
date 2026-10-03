@@ -23,22 +23,24 @@ module QualityGate
 
   # Runs adapters in order and reduces their findings into one immutable result.
   class Runner
-    Result = Data.define(:findings, :failed_tools, :checks) do
-      def initialize(findings:, checks: [])
+    Result = Data.define(:findings, :failed_tools, :checks, :baseline) do
+      def initialize(findings:, checks: [], baseline: nil)
         copied_findings = findings.dup.freeze
         failed_tools = copied_findings.select(&:tool_failure?).map(&:tool).uniq
         copied_checks = RunnerValueCopy.freeze_copy(checks)
+        copied_baseline = RunnerValueCopy.freeze_copy(baseline)
 
         super(
           findings: copied_findings,
           failed_tools: failed_tools.map { _1.dup.freeze }.freeze,
-          checks: copied_checks
+          checks: copied_checks,
+          baseline: copied_baseline
         )
       end
 
       # Override Data#with so replacements cannot bypass the derived-state invariant.
-      def with(findings: self.findings, checks: self.checks)
-        self.class.new(findings: findings, checks: checks)
+      def with(findings: self.findings, checks: self.checks, baseline: self.baseline)
+        self.class.new(findings: findings, checks: checks, baseline: baseline)
       end
 
       def exit_code

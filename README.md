@@ -176,9 +176,42 @@ The shorter form `quality_gate version` works when the installed executable is a
 
 The repository config must also use exactly `text`, `json`, or `markdown` for `format`; any other configured value is rejected as a configuration error before a gate runs.
 
+## Warning baselines
+
+Fast and verify can compare their current results with an explicitly created warning baseline. The feature is disabled by default. Create a snapshot, then compare it on later runs:
+
+```sh
+bundle exec quality_gate fast --create-baseline config/fast-baseline.json
+bundle exec quality_gate fast --baseline config/fast-baseline.json
+# After resolving findings, shrink the accepted set.
+bundle exec quality_gate fast --ratchet-baseline config/fast-baseline.json
+```
+
+`--baseline PATH` accepts existing entries while reporting new or protected findings normally. `--create-baseline PATH` writes only when every finding is eligible for the snapshot. `--ratchet-baseline PATH` compares first and shrinks the snapshot only when the run has no new or protected findings; a blocked ratchet keeps the original bytes and exits with the ordinary findings or tool-failure status. All three options work only with `fast` and `verify`, are mutually exclusive, and use the command's `--format` reporter. Creation and ratcheting require a full scan: they reject `--files` and non-empty configured `files` before running tools. Comparison can use `--files` and never writes the snapshot.
+
+Baselines store only warning and info findings from RuboCop, Reek, and Herb. Errors, tool failures, test and security results, coverage results, and other analyzers remain enforced. Matching uses tool, normalized project-relative file, rule, severity, and message plus a bounded duplicate count; line numbers do not participate, so moving a finding within its file does not make it new. Identical findings in one file are interchangeable up to their stored count, and the snapshot does not prove semantic identity or source provenance. Review analyzer configuration whenever using ratchet, and review manual baseline JSON edits in Git.
+
+Analyzer process status also remains part of the result contract: RuboCop accepts exits `0` and `1`, while Reek accepts `0` and `2`. Other statuses and process signals fail the tool. Reek's explicit “cannot be processed” source diagnostic also fails the tool even if its JSON is empty and the process exits successfully.
+
+The versioned JSON snapshot records its gate, configured adapter order, and finding entries. It must match the gate and current adapter list exactly. The parent directory must already exist. A successful create or ratchet writes before report output; an output-stream failure does not undo that completed file write. This is a reviewed warning policy for QualityGate results, not a replacement for RuboCop's `.rubocop_todo.yml` mechanism.
+
+Snapshots contain analyzer messages and project-relative paths, so treat them as belonging to the host project. Keep baseline files in the project that owns the findings; do not ship them with QualityGate.
+
+To enable comparison from `.quality_gate.yml`, add a gate-to-path mapping. It remains disabled for gates not listed:
+
+```yaml
+baseline:
+  fast: config/fast-baseline.json
+  verify: config/verify-baseline.json
+```
+
+An explicit `--baseline PATH` takes precedence for that invocation. `quality_gate <gate> --help` documents the command-line options without loading configuration.
+
 ## Output contract
 
 Gate text output prints, in order: one line per tool that ran, then findings, then the tally.
+
+When a baseline is active, checks keep each adapter's raw status while the finding list and JSON summary describe enforced findings after comparison. The JSON `baseline` object reports the mode, accepted finding records, counts, and whether a create or ratchet write completed. Without a baseline, JSON retains the existing `checks`, `findings`, and `summary` shape.
 
 When at least one tool ran, each gets a line naming the tool, its status, what it inspected, and how long it took:
 
@@ -304,6 +337,7 @@ timeouts:
   undercover: 120
 compare_point:
 rubocop_config:
+# baseline: {}
 ```
 
 Default adapters when no project configuration overrides them (the Rails setup uses these; Ruby init writes its own test command and omits Brakeman):
