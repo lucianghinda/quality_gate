@@ -556,6 +556,7 @@ module QualityGate
           "undercover" => QualityGate::Adapters::Undercover,
           "brakeman" => QualityGate::Adapters::Brakeman,
           "bundler_audit" => QualityGate::Adapters::BundlerAudit,
+          "database_consistency" => QualityGate::Adapters::DatabaseConsistency,
           "rubycritic" => QualityGate::Adapters::RubyCritic,
           "debride" => QualityGate::Adapters::Debride
         }.freeze

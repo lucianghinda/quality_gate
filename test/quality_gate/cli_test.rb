@@ -107,6 +107,10 @@ module QualityGate
           assert_equal ExitCode::CLEAN, status
           assert_empty stderr
           refute_match(/--(?:baseline|create-baseline|ratchet-baseline)/, stdout)
+          if gate == "audit"
+            assert_includes stdout, "Run the audit gate using these default tools: brakeman, bundler_audit."
+            refute_includes stdout, "database_consistency"
+          end
         end
       end
     end
@@ -1156,6 +1160,7 @@ module QualityGate
           "undercover" => QualityGate::Adapters::Undercover,
           "brakeman" => QualityGate::Adapters::Brakeman,
           "bundler_audit" => QualityGate::Adapters::BundlerAudit,
+          "database_consistency" => QualityGate::Adapters::DatabaseConsistency,
           "rubycritic" => QualityGate::Adapters::RubyCritic,
           "debride" => QualityGate::Adapters::Debride
         },

@@ -4,6 +4,8 @@ QualityGate gives Ruby projects one workflow for checking changes: quick feedbac
 
 The `fast` gate runs RuboCop, with optional adapters such as Herb. `verify` runs Reek, the test suite, and Undercover in order. For `audit`, Rails defaults run Brakeman followed by bundler-audit; the Ruby setup uses bundler-audit alone.
 
+Database consistency checks are not enabled by generated configuration. They are an optional addition to `audit`; generated hooks use other gates, while a CI workflow that invokes `audit` will run this adapter after it is explicitly configured and the application provides its boot and database prerequisites.
+
 This source prepares the 0.3.0 release candidate; it has not been published to RubyGems yet. The latest RubyGems release is 0.2.2; the latest GitHub release is v0.2.3.
 
 The optional `deep` gate is introduced in 0.3.0. Its default adapter is RubyCritic; Debride can be enabled explicitly for project-wide potentially unused method candidates. The gate runs only when requested, and `--files` does not narrow either analyzer.
@@ -44,6 +46,30 @@ bundle exec quality_gate fast
 bundle exec quality_gate verify
 bundle exec quality_gate audit
 ```
+
+### Database consistency (optional audit adapter)
+
+QualityGate does not install the analyzer. Add it to the host application's development bundle and explicitly append it to the existing audit adapters:
+
+```ruby
+gem 'database_consistency', '~> 3.0.14', group: :development, require: false
+```
+
+```yaml
+adapters:
+  audit:
+    - brakeman
+    - bundler_audit
+    - database_consistency
+timeouts:
+  database_consistency: 120
+```
+
+The adapter scans the project as a whole; `--files` validates input paths but does not narrow its checks. The default launcher is the current Ruby interpreter and QualityGate's packaged bridge. An optional `commands.audit.database_consistency` array replaces the Ruby launcher prefix, with the bridge path appended. The bridge loads the current Bundler context, `config/boot.rb`, and `config/environment.rb`, then eager-loads the Rails application. Run `quality_gate audit` manually from the application root after installing the bundle. Doctor can inspect the configured launcher without booting Rails and does not establish that the analyzer or database is available.
+
+The bridge uses the analyzer's internal configuration and processor APIs from version 3.0.14 (`~> 3.0.14`, which allows patch releases below 3.1). It requests reports only; it never calls the analyzer's autofix or todo writers. The upstream processor can write a diagnostic file in the project root when it rescues a checker exception; QualityGate detects that condition and reports a tool failure instead of presenting a clean result. Application boot and schema/database access can still have project-specific effects.
+
+Findings use the regular text, JSON, and Markdown reports, with fail reports mapped to errors and warnings mapped to warnings. A completed clean scan exits `0`, findings exit `1`, and boot, dependency, malformed-output, and execution failures exit `2`.
 
 ### Deep analysis (introduced in 0.3.0)
 
@@ -356,7 +382,7 @@ Default timeouts:
 - `test_suite` => `120`
 - `undercover` => `120`
 
-`adapters` lists adapter names per gate. The built-in registry knows `rubocop`, `reek`, `test_suite`, `undercover`, `simplecov`, `brakeman`, `bundler_audit`, `herb`, `rubycritic`, and `debride`. SimpleCov, Herb, and Debride are registry-known optional adapters, not defaults. RubyCritic is the `deep` default; Debride can be selected alongside it or by itself. The default verify adapters are Reek, the test suite, and Undercover, in that order. Unknown adapter names still become reported tool failures instead of being ignored.
+`adapters` lists adapter names per gate. The built-in registry knows `rubocop`, `reek`, `test_suite`, `undercover`, `simplecov`, `brakeman`, `bundler_audit`, `database_consistency`, `herb`, `rubycritic`, and `debride`. SimpleCov, Herb, Debride, and database_consistency are registry-known optional adapters, not defaults. RubyCritic is the `deep` default; Debride can be selected alongside it or by itself. The default verify adapters are Reek, the test suite, and Undercover, in that order. Unknown adapter names still become reported tool failures instead of being ignored.
 
 ### Aggregate coverage budgets
 
@@ -377,7 +403,7 @@ coverage:
 
 After the test suite runs, the adapter reads SimpleCov's `coverage/.last_run.json` summary without rerunning tests. When SimpleCov is configured in `verify`, QualityGate removes only that aggregate summary before the test command. A command that produces no fresh summary cannot pass using stale coverage. A missing or unusable record is a tool failure. A branch budget without usable branch data is also a tool failure and names `enable_coverage :branch` as the required SimpleCov setup. Coverage below a configured budget produces a stable error finding: `line_coverage_below_minimum` for the line budget and `branch_coverage_below_minimum` for the branch budget.
 
-`timeouts` sets the default adapter timeout in seconds and allows per-tool entries. The shipped RuboCop timeout is 10 seconds, while the test suite and Undercover each have an explicit 120-second timeout. Brakeman and bundler-audit inherit the 120-second default.
+`timeouts` sets the default adapter timeout in seconds and allows per-tool entries. The shipped RuboCop timeout is 10 seconds, while the test suite and Undercover each have an explicit 120-second timeout. Brakeman and bundler-audit inherit the 120-second default; database_consistency also inherits it unless configured separately.
 
 ### Projects with longer test suites
 
