@@ -119,6 +119,10 @@ module QualityGate
     def timeout: () -> Integer
   end
 
+  class DatabaseConsistencyRunner
+    def self.run: (?stdout: _Output, ?stderr: _Output, ?cwd: String) -> (0 | 2)
+  end
+
   module Adapters
     class Brakeman < Adapter
       CONFIDENCE_MAP: Hash[String, finding_severity]
@@ -140,6 +144,16 @@ module QualityGate
       def command: () -> Array[String]
       def parse: (String stdout) -> Array[Finding]
       def timeout: () -> Integer
+    end
+
+    class DatabaseConsistency < Adapter
+      TOOL_NAME: String
+      BRIDGE_PATH: String
+
+      def call: () -> Array[Finding]
+      def name: () -> String
+      def command: () -> Array[String]
+      def parse: (String stdout) -> Array[Finding]
     end
 
     class Herb < Adapter

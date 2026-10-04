@@ -1,6 +1,9 @@
 # frozen_string_literal: true
 
 require_relative "../test_helper"
+require "fileutils"
+require "json"
+require "stringio"
 require "tmpdir"
 require "quality_gate/doctor_report"
 require "quality_gate/doctor_launchers"
@@ -80,6 +83,34 @@ class DoctorTest < Minitest::Test
       assert_equal "blocked", check(report, "command.verify.simplecov").fetch("status")
       assert_match(/coverage threshold/i, check(report, "command.verify.simplecov").fetch("message"))
     end
+  end
+
+  def test_database_consistency_doctor_check_inspects_launcher_without_booting_app
+    with_project("adapters:\n  audit:\n    - database_consistency\n") do |dir|
+      marker = boot_marker(dir)
+      assert_database_consistency_launcher_ready(doctor_database_check(dir))
+      refute File.exist?(marker)
+    end
+  end
+
+  def boot_marker(dir)
+    marker = File.join(dir, "booted")
+    FileUtils.mkdir_p(File.join(dir, "config"))
+    File.write(File.join(dir, "config", "boot.rb"), "File.write(#{marker.inspect}, 'yes')\n")
+    marker
+  end
+
+  def doctor_database_check(dir)
+    stdout = StringIO.new
+    stderr = StringIO.new
+    QualityGate::CLI.run(%w[doctor --format json], stdout:, stderr:, dir:)
+    assert_empty stderr.string
+    JSON.parse(stdout.string).fetch("checks").find { _1.fetch("id") == "command.audit.database_consistency" }
+  end
+
+  def assert_database_consistency_launcher_ready(check)
+    assert_equal "ready", check.fetch("status")
+    assert_includes check.fetch("message"), "command behavior was not run"
   end
 
   def test_invalid_timeout_blocks_without_calling_command

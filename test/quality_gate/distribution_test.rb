@@ -92,6 +92,10 @@ module QualityGate
     lib/quality_gate/adapters/rubocop.rb
     lib/quality_gate/adapters/brakeman.rb
     lib/quality_gate/adapters/bundler_audit.rb
+    lib/quality_gate/adapters/database_consistency.rb
+    lib/quality_gate/adapters/database_consistency_report.rb
+    lib/quality_gate/adapters/database_consistency_report_item.rb
+    lib/quality_gate/database_consistency_runner.rb
     lib/quality_gate/adapters/simplecov.rb
     lib/quality_gate/adapters/test_suite.rb
     lib/quality_gate/adapters/undercover.rb

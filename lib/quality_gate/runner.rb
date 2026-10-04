@@ -61,7 +61,8 @@ module QualityGate
       "brakeman" => "project",
       "bundler_audit" => "lockfile",
       "rubycritic" => "project",
-      "debride" => "project"
+      "debride" => "project",
+      "database_consistency" => "project"
     }.freeze
     SELECTION_SUPPORTED_TOOLS = %w[rubocop reek herb].freeze
     private_constant :CHECK_SCOPES, :SELECTION_SUPPORTED_TOOLS
