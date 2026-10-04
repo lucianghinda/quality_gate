@@ -1,15 +1,15 @@
 ## [Unreleased]
 
-- Add opt-in fast/verify warning baselines with comparison, create, and shrink-only ratchet modes; protected findings and tool failures remain enforced.
-- Treat RuboCop process errors and Reek source-processing diagnostics as tool failures even when their JSON output is valid and empty.
-- Add opt-in Codex patch feedback after native `apply_patch` calls while retaining full Stop verification.
-- Add an opt-in native Codex Stop verification hook for plain Ruby and Rails installs.
-
-## [0.3.0] - 2026-10-02
+## [0.3.0] - 2026-10-04
 
 - Add `quality_gate doctor` for read-only setup preflight checks with text or JSON output.
 - Add an optional, explicitly invoked RubyCritic-backed `deep` gate for project-wide design analysis. RubyCritic remains a host-project dependency; the gate does not add a score budget or generated hooks/workflows.
 - Add optional Debride support to the manual, project-wide `deep` gate for potentially unused method candidates. Debride remains a host-project dependency; the existing RubyCritic default and generated hooks/workflows are unchanged.
+- Add an optional, project-wide `audit` adapter for database consistency using the host project's `database_consistency ~> 3.0.14`; analyzer scan failures are reported as tool failures.
+- Add opt-in fast/verify warning baselines with comparison, create, and shrink-only ratchet modes; protected findings and tool failures remain enforced.
+- Treat RuboCop process errors and Reek source-processing diagnostics as tool failures even when their JSON output is valid and empty.
+- Add opt-in Codex patch feedback after native `apply_patch` calls while retaining full Stop verification.
+- Add an opt-in native Codex Stop verification hook for plain Ruby and Rails installs.
 
 ## [0.2.3] - 2026-10-02
 

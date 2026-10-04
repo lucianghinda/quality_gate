@@ -6,7 +6,7 @@ The `fast` gate runs RuboCop, with optional adapters such as Herb. `verify` runs
 
 Database consistency checks are not enabled by generated configuration. They are an optional addition to `audit`; generated hooks use other gates, while a CI workflow that invokes `audit` will run this adapter after it is explicitly configured and the application provides its boot and database prerequisites.
 
-This source prepares the 0.3.0 release candidate; it has not been published to RubyGems yet. The latest RubyGems release is 0.2.2; the latest GitHub release is v0.2.3.
+This source prepares the unpublished 0.3.0 release candidate. It includes Doctor preflight checks, optional RubyCritic and Debride deep analysis, warning-baseline ratchets, Codex patch feedback and Stop verification hooks, stricter analyzer tool-error reporting, and an optional database consistency audit adapter. The latest RubyGems release is 0.2.2; the latest GitHub release is v0.2.3.
 
 The optional `deep` gate is introduced in 0.3.0. Its default adapter is RubyCritic; Debride can be enabled explicitly for project-wide potentially unused method candidates. The gate runs only when requested, and `--files` does not narrow either analyzer.
 
