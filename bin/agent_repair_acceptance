@@ -1,0 +1,6 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative "../test/support/agent_repair_acceptance"
+
+exit AgentRepairAcceptance::Command.new(ARGV).call
