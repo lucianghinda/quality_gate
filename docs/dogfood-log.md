@@ -30,6 +30,60 @@ The fixture budgets are below 2 seconds for a warm file-scoped `fast` run and be
 3 seconds for the installed hook round trip. These are test targets, not measured
 release guarantees. A skipped timing check provides no latency evidence.
 
+## Real-application pilot procedure
+
+Two applications have been selected privately. Initial setup findings and the
+remaining validation work are recorded in the
+[pilot plan](implementation/2026-10-05-real-app-validation.md).
+No sustained adoption, native repair, or review-time result is claimed.
+For each application, follow this order and keep its private raw record outside
+public docs:
+
+1. **Inspect the existing app and test environment.** Read its `AGENTS.md` and
+   local setup guidance. Record a private alias, commit, Ruby/Rails and Bundler
+   versions, existing QualityGate setup, test command and required test services.
+   Confirm the database and services are isolated from production, then record
+   the current suite result before making changes.
+2. **Add the released gem to the app bundle.** Use the app's existing Gemfile
+   convention to include `quality_gate` at `~> 0.3.0`, then run `bundle install`.
+   Record elapsed time, dependency/setup blockers, and manual interventions.
+3. **Preview setup before applying it.** For a plain Ruby app, preview
+   `bundle exec quality_gate init --profile ruby --pretend`. For Rails, preview
+   `bin/rails generate quality_gate:install --pretend`. Review every proposed
+   file before running the corresponding command without `--pretend`.
+4. **Preserve and integrate conflicts.** Keep existing app configuration and
+   custom hooks. The installer preserves existing configuration; when it reports
+   a conflict, compare the proposed and current contents and integrate the
+   needed settings manually. Record the conflict and resolution.
+5. **Run preflight and each gate separately.** Run
+   `bundle exec quality_gate doctor`, `bundle exec quality_gate fast`,
+   `bundle exec quality_gate verify`, and `bundle exec quality_gate audit` as
+   independent commands. Record each exit status, per-check status, findings,
+   warnings, unavailable tools, and duration. Treat findings as items to triage;
+   do not suppress them without recording the reason and any permitted baseline.
+6. **Review and activate native hooks.** Install only the app's chosen client
+   integration (`--agents` for Claude Code or `--codex` for Codex) using the
+   documented setup command. Inspect generated hook files and commands. For
+   Codex, trust the project and review both commands in `/hooks` before relying
+   on them. Record whether each expected native event actually ran and delivered
+   feedback; file presence alone does not prove activation.
+7. **Measure file-scoped fast latency.** Choose a representative large Ruby
+   file. Run `bundle exec quality_gate fast --files path/to/file.rb` once cold,
+   then five times warm. Record all six elapsed times and use the five warm
+   observations for median and maximum; keep native hook round-trip times
+   separate. This small sample is not a percentile claim.
+8. **Triage every finding and use the app normally.** Classify findings as
+   actionable, intentional policy exception, false positive, duplicate, or
+   unresolved. During ordinary application sessions, record useful changes,
+   native feedback delivered, repairs corroborated by feedback, unavailable or
+   capped attempts, gate outcomes, and time spent. Keep controlled trials and
+   ordinary sessions distinct.
+
+The maintainer fixture runner's `prepare` command creates a new controlled
+fixture. It is not an installer for an existing application and must not be used
+to measure existing-app adoption. Fixture contracts below remain separate from
+the real-application pilot.
+
 ## Live agent repair trials
 
 From a repository checkout, the maintainer runner can prepare an isolated Rails

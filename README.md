@@ -6,7 +6,7 @@ The `fast` gate runs RuboCop, with optional adapters such as Herb. `verify` runs
 
 Database consistency checks are not enabled by generated configuration. They are an optional addition to `audit`; generated hooks use other gates, while a CI workflow that invokes `audit` will run this adapter after it is explicitly configured and the application provides its boot and database prerequisites.
 
-This source prepares the unpublished 0.3.0 release candidate. It includes Doctor preflight checks, optional RubyCritic and Debride deep analysis, warning-baseline ratchets, Codex patch feedback and Stop verification hooks, stricter analyzer tool-error reporting, and an optional database consistency audit adapter. The latest RubyGems release is 0.2.2; the latest GitHub release is v0.2.3.
+QualityGate 0.3.0 was published to RubyGems on October 4, 2026. The latest GitHub release entry is v0.2.3; the two release records currently differ. Version 0.3.0 includes Doctor preflight checks, optional RubyCritic and Debride deep analysis, warning-baseline ratchets, Codex patch feedback and Stop verification hooks, stricter analyzer tool-error reporting, and an optional database consistency audit adapter.
 
 The optional `deep` gate is introduced in 0.3.0. Its default adapter is RubyCritic; Debride can be enabled explicitly for project-wide potentially unused method candidates. The gate runs only when requested, and `--files` does not narrow either analyzer.
 
@@ -639,12 +639,12 @@ used through Bundler, so the Gemfile entry does not require the library:
 
 ```ruby
 group :development, :test do
-  gem "quality_gate", "~> 0.2", require: false
+  gem "quality_gate", "~> 0.3.0", require: false
 end
 ```
 
-The Rails/RSpec options, `--ci`, and Herb support were introduced in the v0.2.3 GitHub release and are included in this candidate. They are not in the current RubyGems release, 0.2.2.
-The `~> 0.2` version constraint will accept 0.3.x once published.
+The published 0.3.0 gem includes the Rails/RSpec options, `--ci`, and Herb
+support introduced in the v0.2.3 GitHub release.
 
 Bundler installs the gem's runtime dependencies automatically. The published
 gemspec currently declares:
